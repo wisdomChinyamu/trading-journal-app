@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Platform, View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
-import { uploadTradeImage } from '../services/supabaseImageService';
 import { useTheme } from './ThemeProvider';
 
 type ImageUploaderProps = {
@@ -11,24 +10,28 @@ type ImageUploaderProps = {
 
 export default function ImageUploader({ screenshots, onAdd, onRemove }: ImageUploaderProps) {
   const { colors } = useTheme();
-  const handleWebPicker = () => {
+
+  const handleWebPicker = useCallback(() => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
     input.onchange = async (e: any) => {
-      const file: File = e.target.files[0];
+      const file: File = e.target.files?.[0];
       if (!file) return;
       const url = URL.createObjectURL(file);
       onAdd(url, file);
     };
     input.click();
-  };
+  }, [onAdd]);
 
-  const handleNative = async () => {
+  const handleNative = useCallback(async () => {
     try {
-      // Use Expo ImagePicker if available (soft fallback)
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const ImagePicker = require('expo-image-picker');
+      if (Platform.OS === 'web') {
+        console.warn('Image picker not available on web, use handleWebPicker instead');
+        return;
+      }
+
+      const ImagePicker = await import('expo-image-picker');
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.8,
@@ -37,17 +40,36 @@ export default function ImageUploader({ screenshots, onAdd, onRemove }: ImageUpl
         onAdd(res.uri);
       }
     } catch (err) {
-      console.warn('Image picker not available', err);
+      console.error('Image picker error (this is normal on web):', err);
+      if (Platform.OS === 'web') {
+        console.info('Falling back to web file picker...');
+        handleWebPicker();
+      }
     }
-  };
+  }, [onAdd, handleWebPicker]);
+
+  const handlePress = useCallback(() => {
+    if (Platform.OS === 'web') {
+      handleWebPicker();
+    } else {
+      handleNative();
+    }
+  }, [handleWebPicker, handleNative]);
 
   return (
     <View>
       <View style={styles.row}>
         {screenshots.map((s) => (
           <View key={s} style={styles.thumbWrap}>
-            <Image source={{ uri: s }} style={[styles.thumb, { backgroundColor: colors.surface }]} />
-            <TouchableOpacity style={[styles.remove, { backgroundColor: colors.lossEnd }]} onPress={() => onRemove(s)}>
+            <Image 
+              source={{ uri: s }} 
+              style={[styles.thumb, { backgroundColor: colors.surface }]} 
+            />
+            <TouchableOpacity 
+              style={[styles.remove, { backgroundColor: colors.lossEnd }]} 
+              onPress={() => onRemove(s)}
+              accessibilityLabel="Remove image"
+            >
               <Text style={[styles.removeText, { color: colors.surface }]}>×</Text>
             </TouchableOpacity>
           </View>
@@ -56,18 +78,33 @@ export default function ImageUploader({ screenshots, onAdd, onRemove }: ImageUpl
 
       <TouchableOpacity
         style={[styles.button, { backgroundColor: colors.highlight }]}
-        onPress={() => (Platform.OS === 'web' ? handleWebPicker() : handleNative())}
+        onPress={handlePress}
+        accessibilityLabel="Upload screenshot"
       >
-        <Text style={[styles.buttonText, { color: colors.text }]}>Upload Screenshot</Text>
+        <Text style={[styles.buttonText, { color: colors.text }]}>
+          {Platform.OS === 'web' ? 'Choose Image' : 'Upload Screenshot'}
+        </Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  thumbWrap: { position: 'relative' },
-  thumb: { width: 80, height: 80, borderRadius: 8 },
+  row: { 
+    flexDirection: 'row', 
+    gap: 8, 
+    marginBottom: 12,
+    flexWrap: 'wrap',
+  },
+  thumbWrap: { 
+    position: 'relative' 
+  },
+  thumb: { 
+    width: 80, 
+    height: 80, 
+    borderRadius: 8,
+    resizeMode: 'cover',
+  },
   remove: {
     position: 'absolute',
     top: -8,
@@ -78,11 +115,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  removeText: { fontWeight: '700' },
+  removeText: { 
+    fontWeight: '700',
+    fontSize: 16,
+  },
   button: {
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
+    marginTop: 8,
   },
-  buttonText: { fontWeight: '700' },
+  buttonText: { 
+    fontWeight: '700',
+    fontSize: 14,
+  },
 });

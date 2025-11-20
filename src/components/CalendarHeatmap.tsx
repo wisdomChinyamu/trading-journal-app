@@ -128,7 +128,7 @@ export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: 
     const scaleValue = getScaleAnimatedValue(dayKey);
     Animated.spring(scaleValue, {
       toValue: 0.95,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
       tension: 100,
       friction: 8,
     }).start();
@@ -138,7 +138,7 @@ export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: 
     const scaleValue = getScaleAnimatedValue(dayKey);
     Animated.spring(scaleValue, {
       toValue: 1,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
       tension: 100,
       friction: 8,
     }).start();

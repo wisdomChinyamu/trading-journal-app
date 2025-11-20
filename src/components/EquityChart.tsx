@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Platform } from 'react-native';
 import Svg, { Path, Rect, G, Line, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { useTheme } from './ThemeProvider';
 
@@ -7,7 +7,11 @@ type Point = { x: number; y: number };
 
 export default function EquityChart({ series, height = 140 }: { series: { date: string; value: number }[]; height?: number }) {
   const { colors } = useTheme();
-  const width = Math.max(300, Dimensions.get('window').width - 64);
+  // On web, use larger width to take advantage of bigger screens
+  const windowWidth = Dimensions.get('window').width;
+  const width = Platform.OS === 'web'
+    ? Math.max(400, windowWidth - 48)  // Less padding on web
+    : Math.max(300, windowWidth - 64);
 
   const min = Math.min(0, ...(series.map(s => s.value)));
   const max = Math.max(1, ...(series.map(s => s.value)));

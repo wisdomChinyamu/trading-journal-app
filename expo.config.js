@@ -1,3 +1,5 @@
+const appJson = require('./app.json');
+
 module.exports = {
-  ...require('./app.json').expo,
+  ...appJson.expo,
 };

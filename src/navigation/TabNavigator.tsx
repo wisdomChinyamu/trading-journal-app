@@ -1,6 +1,11 @@
 import React from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+
+// On web, use stack instead of native-stack to avoid safe-area-context dependency
+const Stack = Platform.OS === 'web'
+  ? require('@react-navigation/stack').createStackNavigator()
+  : require('@react-navigation/native-stack').createNativeStackNavigator();
 import DashboardScreen from '../screens/DashboardScreen';
 import JournalScreen from '../screens/JournalScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
