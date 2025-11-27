@@ -19,6 +19,12 @@ export async function uploadTradeImage(
       return null;
     }
 
+    // Check if the supabase client is properly initialized
+    if (!supabase || !supabase.storage) {
+      console.warn('Supabase client not properly initialized. Image upload skipped.');
+      return null;
+    }
+
     if (!file) {
       throw new Error('No file provided');
     }
@@ -65,6 +71,12 @@ export async function deleteTradeImage(imageUrl: string): Promise<boolean> {
       return false;
     }
 
+    // Check if the supabase client is properly initialized
+    if (!supabase || !supabase.storage) {
+      console.warn('Supabase client not properly initialized. Image deletion skipped.');
+      return false;
+    }
+
     // Extract the file path from the URL if it's a full URL
     let filePath = imageUrl;
     if (imageUrl.includes('/storage/v1/object/public/')) {
@@ -98,6 +110,12 @@ export async function getTradeImages(tradeId: string): Promise<string[]> {
     // Check if Supabase is configured
     if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
       console.warn('Supabase not configured. Getting images skipped.');
+      return [];
+    }
+
+    // Check if the supabase client is properly initialized
+    if (!supabase || !supabase.storage) {
+      console.warn('Supabase client not properly initialized. Getting images skipped.');
       return [];
     }
 
@@ -140,6 +158,12 @@ export async function updateTradeImage(
     // Check if Supabase is configured
     if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
       console.warn('Supabase not configured. Image update skipped.');
+      return null;
+    }
+
+    // Check if the supabase client is properly initialized
+    if (!supabase || !supabase.storage) {
+      console.warn('Supabase client not properly initialized. Image update skipped.');
       return null;
     }
 

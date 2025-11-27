@@ -17,8 +17,8 @@ This application uses Supabase for storing trade-related images. Follow these st
 
 1. After project creation, go to **Settings** > **API**
 2. You'll see:
-   - **Project URL** (copy this as `REACT_APP_SUPABASE_URL`)
-   - **Project API keys** (copy the "anon/public" key as `REACT_APP_SUPABASE_ANON_KEY`)
+   - **Project URL** (copy this as `EXPO_PUBLIC_SUPABASE_URL`)
+   - **Project API keys** (copy the "anon/public" key as `EXPO_PUBLIC_SUPABASE_ANON_KEY`)
 
 ## 3. Create a Storage Bucket
 
@@ -68,8 +68,8 @@ USING (bucket_id = 'trade-images');
 
 2. Open `.env.local` and add your Supabase credentials:
    ```
-   REACT_APP_SUPABASE_URL=https://your-project.supabase.co
-   REACT_APP_SUPABASE_ANON_KEY=your-anon-key-here
+   EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
    ```
 
 ## 6. Using Image Storage in Your App
