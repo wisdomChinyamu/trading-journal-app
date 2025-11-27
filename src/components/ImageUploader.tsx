@@ -58,7 +58,7 @@ export default function ImageUploader({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.8,
       });
-      if (!res.cancelled) {
+      if (!res.canceled && "uri" in res && typeof res.uri === "string") {
         onAdd(res.uri);
       }
     } catch (err) {

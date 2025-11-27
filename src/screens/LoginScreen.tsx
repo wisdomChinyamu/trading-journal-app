@@ -20,7 +20,6 @@ export default function LoginScreen({ navigation }: any) {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       Alert.alert("Success", "Logged in successfully");
-      navigation.replace("Dashboard");
     } catch (error: any) {
       Alert.alert("Login Error", error.message);
     } finally {
@@ -57,6 +56,9 @@ export default function LoginScreen({ navigation }: any) {
       </TouchableOpacity>
       <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
         <Text style={styles.link}>Don't have an account? Sign Up</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => navigation.navigate("ResetPassword")}>
+        <Text style={styles.link}>Forgot password?</Text>
       </TouchableOpacity>
     </View>
   );

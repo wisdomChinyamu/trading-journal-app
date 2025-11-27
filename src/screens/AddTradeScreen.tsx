@@ -18,7 +18,8 @@ import {
   calculateConfluenceScore,
   assignGrade,
 } from "../utils/calculations";
-import { Trade, TradeDirection, TradeSession } from "../types";
+import { Trade, TradeDirection, TradeSession, Strategy } from "../types";
+import { getUserStrategies } from "../services/firebaseService";
 
 interface AddTradeScreenProps {
   navigation: any;
@@ -49,25 +50,24 @@ export default function AddTradeScreen({
   navigation,
   route,
 }: AddTradeScreenProps) {
-  // Checklist items for selected strategy (mock, replace with Firestore fetch)
-  const [checklistItems, setChecklistItems] = useState<any[]>([
-    {
-      id: "1",
-      label: "Followed plan",
-      description: "",
-      weight: 10,
-      category: "Critical",
-      createdAt: new Date(),
-    },
-    {
-      id: "2",
-      label: "Good R:R",
-      description: "",
-      weight: 5,
-      category: "Important",
-      createdAt: new Date(),
-    },
-  ]);
+  const userId = "current-user"; // Replace with actual user ID from context/auth
+  const [strategies, setStrategies] = useState<Strategy[]>([]);
+  const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(
+    null
+  );
+  const [checklistItems, setChecklistItems] = useState<any[]>([]);
+  useEffect(() => {
+    getUserStrategies(userId).then(setStrategies);
+  }, []);
+
+  useEffect(() => {
+    if (selectedStrategyId) {
+      const strategy = strategies.find((s) => s.id === selectedStrategyId);
+      setChecklistItems(strategy?.checklist || []);
+    } else {
+      setChecklistItems([]);
+    }
+  }, [selectedStrategyId, strategies]);
   const [checkedItems, setCheckedItems] = useState<string[]>([]);
   const [beforeImage, setBeforeImage] = useState<string>("");
   const [afterImage, setAfterImage] = useState<string>("");
@@ -79,7 +79,7 @@ export default function AddTradeScreen({
   const [takeProfit, setTakeProfit] = useState("");
   const [actualExit, setActualExit] = useState("");
   const [result, setResult] = useState<"Win" | "Loss" | "Break-even" | "">("");
-  const [setupType, setSetupType] = useState("Order Block");
+  const [setupType, setSetupType] = useState("");
   const [emotion, setEmotion] = useState("5");
   const [ruleDeviation, setRuleDeviation] = useState(false);
   const [notes, setNotes] = useState("");
@@ -163,6 +163,7 @@ export default function AddTradeScreen({
       riskToReward: rr,
       confluenceScore: confluenceScore || 0,
       grade: confluenceScore ? assignGrade(confluenceScore) : "D",
+      strategyId: selectedStrategyId || undefined,
       setupType,
       emotionalRating: Number(emotion),
       ruleDeviation,
@@ -324,27 +325,30 @@ export default function AddTradeScreen({
         </View>
       </View>
 
-      {/* Setup Type */}
+      {/* Strategy Selection */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Setup Type</Text>
+        <Text style={styles.sectionTitle}>Strategy</Text>
         <View style={styles.buttonGroup}>
-          {SETUP_TYPES.map((setup) => (
+          {strategies.map((strategy) => (
             <TouchableOpacity
-              key={setup}
+              key={strategy.id}
               style={[
                 styles.button,
-                setupType === setup && styles.buttonActive,
+                selectedStrategyId === strategy.id && styles.buttonActive,
               ]}
-              onPress={() => setSetupType(setup)}
+              onPress={() => {
+                setSelectedStrategyId(strategy.id);
+                setSetupType(strategy.name);
+              }}
             >
               <Text
                 style={[
                   styles.buttonText,
-                  setupType === setup && styles.buttonTextActive,
+                  selectedStrategyId === strategy.id && styles.buttonTextActive,
                   { fontSize: 11 },
                 ]}
               >
-                {setup}
+                {strategy.name}
               </Text>
             </TouchableOpacity>
           ))}

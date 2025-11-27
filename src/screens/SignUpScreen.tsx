@@ -8,8 +8,7 @@ import {
   Alert,
 } from "react-native";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { getAuth } from "firebase/auth";
-const auth = getAuth();
+import { auth } from "../services/firebaseService";
 
 export default function SignUpScreen({ navigation }: any) {
   const [email, setEmail] = useState("");
@@ -21,7 +20,6 @@ export default function SignUpScreen({ navigation }: any) {
     try {
       await createUserWithEmailAndPassword(auth, email, password);
       Alert.alert("Success", "Account created successfully");
-      navigation.replace("Dashboard");
     } catch (error: any) {
       Alert.alert("Sign Up Error", error.message);
     } finally {

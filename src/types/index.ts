@@ -1,3 +1,22 @@
+// Trading Account type
+export interface TradingAccount {
+  id: string;
+  userId: string;
+  name: string;
+  startingBalance: number;
+  currentBalance: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+// Strategy type
+export interface Strategy {
+  id: string;
+  userId: string;
+  name: string;
+  checklist: ChecklistItem[];
+  createdAt: Date;
+  updatedAt: Date;
+}
 // User type
 export interface User {
   uid: string;
@@ -8,7 +27,7 @@ export interface User {
 }
 
 // Checklist Item type
-export type ChecklistCategory = 'Critical' | 'Important' | 'Optional';
+export type ChecklistCategory = "Critical" | "Important" | "Optional";
 
 export interface ChecklistItem {
   id: string;
@@ -28,11 +47,11 @@ export interface ChecklistTemplate {
 }
 
 // Trade type
-export type TradeResult = 'Win' | 'Loss' | 'Break-even';
+export type TradeResult = "Win" | "Loss" | "Break-even";
 export type TradePair = string; // e.g., "GBPUSD"
-export type TradeDirection = 'Buy' | 'Sell';
-export type TradeSession = 'London' | 'NY' | 'Asia';
-export type TradeGrade = 'A+' | 'A' | 'B' | 'C' | 'D';
+export type TradeDirection = "Buy" | "Sell";
+export type TradeSession = "London" | "NY" | "Asia";
+export type TradeGrade = "A+" | "A" | "B" | "C" | "D";
 
 export interface Trade {
   id: string;
@@ -53,6 +72,8 @@ export interface Trade {
   ruleDeviation: boolean;
   screenshots: string[]; // URLs to Firebase Storage
   notes: string;
+  strategyId?: string; // Link to strategy checklist
+  checklist?: string[]; // Selected checklist item IDs
   createdAt: Date;
   updatedAt: Date;
 }
@@ -75,7 +96,7 @@ export interface RoutineItem {
   label: string;
   description: string;
   completed: boolean;
-  category: 'Pre-Market' | 'Execution' | 'Post-Trade' | 'Weekly-Review';
+  category: "Pre-Market" | "Execution" | "Post-Trade" | "Weekly-Review";
 }
 
 export interface RoutineTemplate {

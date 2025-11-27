@@ -1,3 +1,141 @@
+// ==================== ACCOUNTS ====================
+
+import { TradingAccount } from "../types";
+
+export async function createAccount(
+  userId: string,
+  name: string,
+  startingBalance: number
+) {
+  try {
+    const docRef = await addDoc(collection(db, "accounts"), {
+      userId,
+      name,
+      startingBalance,
+      currentBalance: startingBalance,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error("Error creating account:", error);
+    throw error;
+  }
+}
+
+export async function updateAccount(
+  accountId: string,
+  updates: Partial<TradingAccount>
+) {
+  try {
+    await updateDoc(doc(db, "accounts", accountId), {
+      ...updates,
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error) {
+    console.error("Error updating account:", error);
+    throw error;
+  }
+}
+
+export async function deleteAccount(accountId: string) {
+  try {
+    await deleteDoc(doc(db, "accounts", accountId));
+  } catch (error) {
+    console.error("Error deleting account:", error);
+    throw error;
+  }
+}
+
+export async function getUserAccounts(
+  userId: string
+): Promise<TradingAccount[]> {
+  try {
+    const q = query(collection(db, "accounts"), where("userId", "==", userId));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        ...data,
+        id: doc.id,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date(),
+      } as TradingAccount;
+    });
+  } catch (error) {
+    console.error("Error fetching accounts:", error);
+    throw error;
+  }
+}
+// ==================== STRATEGIES ====================
+
+import { Strategy } from "../types";
+
+export async function createStrategy(
+  userId: string,
+  name: string,
+  checklist: ChecklistItem[]
+) {
+  try {
+    const docRef = await addDoc(collection(db, "strategies"), {
+      userId,
+      name,
+      checklist,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error("Error creating strategy:", error);
+    throw error;
+  }
+}
+
+export async function updateStrategy(
+  strategyId: string,
+  updates: Partial<Strategy>
+) {
+  try {
+    await updateDoc(doc(db, "strategies", strategyId), {
+      ...updates,
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error) {
+    console.error("Error updating strategy:", error);
+    throw error;
+  }
+}
+
+export async function deleteStrategy(strategyId: string) {
+  try {
+    await deleteDoc(doc(db, "strategies", strategyId));
+  } catch (error) {
+    console.error("Error deleting strategy:", error);
+    throw error;
+  }
+}
+
+export async function getUserStrategies(userId: string): Promise<Strategy[]> {
+  try {
+    const q = query(
+      collection(db, "strategies"),
+      where("userId", "==", userId)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        ...data,
+        id: doc.id,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date(),
+      } as Strategy;
+    });
+  } catch (error) {
+    console.error("Error fetching strategies:", error);
+    throw error;
+  }
+}
 import { db, storage } from "../config/firebase";
 import { auth as firebaseAuth } from "../config/firebase";
 import {

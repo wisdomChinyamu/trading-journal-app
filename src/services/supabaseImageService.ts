@@ -13,6 +13,12 @@ export async function uploadTradeImage(
   file: File
 ): Promise<string | null> {
   try {
+    // Check if Supabase is configured
+    if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
+      console.warn('Supabase not configured. Image upload skipped.');
+      return null;
+    }
+
     if (!file) {
       throw new Error('No file provided');
     }
@@ -53,13 +59,20 @@ export async function uploadTradeImage(
  */
 export async function deleteTradeImage(imageUrl: string): Promise<boolean> {
   try {
+    // Check if Supabase is configured
+    if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
+      console.warn('Supabase not configured. Image deletion skipped.');
+      return false;
+    }
+
     // Extract the file path from the URL if it's a full URL
     let filePath = imageUrl;
     if (imageUrl.includes('/storage/v1/object/public/')) {
       filePath = imageUrl.split('/storage/v1/object/public/trade-images/')[1];
     }
 
-    const { error } = await supabase.storage
+    const { error } = await supabase
+      .storage
       .from(BUCKET_NAME)
       .remove([filePath]);
 
@@ -76,36 +89,35 @@ export async function deleteTradeImage(imageUrl: string): Promise<boolean> {
 }
 
 /**
- * Get all images for a specific trade
- * @param tradeId - The ID of the trade
- * @returns Array of public URLs for all images associated with the trade
+ * Get images for a specific trade from Supabase storage
+ * @param tradeId - The ID of the trade to get images for
+ * @returns Array of image URLs or empty array if retrieval fails
  */
 export async function getTradeImages(tradeId: string): Promise<string[]> {
   try {
-    const { data, error } = await supabase.storage
+    // Check if Supabase is configured
+    if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
+      console.warn('Supabase not configured. Getting images skipped.');
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .storage
       .from(BUCKET_NAME)
       .list(tradeId);
 
     if (error) {
-      console.error('Error fetching trade images:', error);
+      console.error('Error listing images:', error);
       return [];
     }
 
-    if (!data || data.length === 0) {
-      return [];
-    }
-
-    // Generate public URLs for all images
-    const imageUrls = data
-      .filter(file => !file.name.startsWith('.')) // Filter out hidden files
-      .map(file => {
-        const { data: publicUrlData } = supabase.storage
-          .from(BUCKET_NAME)
-          .getPublicUrl(`${tradeId}/${file.name}`);
-        return publicUrlData.publicUrl;
-      });
-
-    return imageUrls;
+    // Map to public URLs
+    return data.map((file) => {
+      const { data: { publicUrl } } = supabase.storage
+        .from(BUCKET_NAME)
+        .getPublicUrl(`${tradeId}/${file.name}`);
+      return publicUrl;
+    });
   } catch (error) {
     console.error('Failed to get trade images:', error);
     return [];
@@ -113,25 +125,29 @@ export async function getTradeImages(tradeId: string): Promise<string[]> {
 }
 
 /**
- * Update an image (delete old and upload new)
- * @param tradeId - The ID of the trade
- * @param oldImageUrl - The URL of the image to replace
- * @param newFile - The new image file
- * @returns The public URL of the new image or null if update fails
+ * Update an existing image in Supabase storage
+ * @param oldImageUrl - The URL of the existing image to replace
+ * @param tradeId - The ID of the trade the image belongs to
+ * @param file - The new image file
+ * @returns The public URL of the updated image or null if update fails
  */
 export async function updateTradeImage(
-  tradeId: string,
   oldImageUrl: string,
-  newFile: File
+  tradeId: string,
+  file: File
 ): Promise<string | null> {
   try {
-    // Delete old image
+    // Check if Supabase is configured
+    if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
+      console.warn('Supabase not configured. Image update skipped.');
+      return null;
+    }
+
+    // First delete the old image
     await deleteTradeImage(oldImageUrl);
 
-    // Upload new image
-    const newImageUrl = await uploadTradeImage(tradeId, newFile);
-
-    return newImageUrl;
+    // Then upload the new image
+    return await uploadTradeImage(tradeId, file);
   } catch (error) {
     console.error('Failed to update trade image:', error);
     return null;
