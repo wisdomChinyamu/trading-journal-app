@@ -418,35 +418,19 @@ export async function getUserPsychologyLogs(
   }
 }
 
-// ==================== FILE UPLOADS ====================
+// ==================== FILE UPLOADS (DEPRECATED - NOW USING SUPABASE) ====================
+// These functions have been deprecated in favor of Supabase Storage functions
+// See src/services/supabaseImageService.ts for the new implementation
 
 export async function uploadTradeScreenshot(
   userId: string,
   tradeId: string,
   imageUri: string
-) {
-  try {
-    const response = await fetch(imageUri);
-    const blob = await response.blob();
-    const storageRef = ref(
-      storage,
-      `trades/${userId}/${tradeId}/${Date.now()}`
-    );
-    await uploadBytes(storageRef, blob);
-    const downloadURL = await getDownloadURL(storageRef);
-    return downloadURL;
-  } catch (error) {
-    console.error("Error uploading screenshot:", error);
-    throw error;
-  }
+): Promise<string | null> {
+  console.warn("uploadTradeScreenshot is deprecated. Use uploadTradeImage from supabaseImageService instead.");
+  return null;
 }
 
-export async function deleteTradeScreenshot(screenshotUrl: string) {
-  try {
-    const storageRef = ref(storage, screenshotUrl);
-    await deleteObject(storageRef);
-  } catch (error) {
-    console.error("Error deleting screenshot:", error);
-    throw error;
-  }
+export async function deleteTradeScreenshot(screenshotUrl: string): Promise<void> {
+  console.warn("deleteTradeScreenshot is deprecated. Use deleteTradeImage from supabaseImageService instead.");
 }

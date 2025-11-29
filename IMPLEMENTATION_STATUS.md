@@ -55,8 +55,11 @@
 - [x] Trade CRUD operations
 - [x] Checklist template management
 - [x] Psychology log operations
-- [x] Screenshot upload to Storage
 - [x] User-scoped data isolation
+
+### Supabase Services
+
+- [x] Screenshot upload to Storage
 
 ### Documentation
 
@@ -73,18 +76,22 @@
 - [ ] **Authentication Screens**: Login, signup, password reset
   - Add to App.tsx before TabNavigator
   - Use Firebase Auth: `createUserWithEmailAndPassword`, `signInWithEmailAndPassword`
+  
 - [ ] **Real Equity Curve Charting**: Replace static card with graph
   - Use `react-native-svg` + `d3` or `recharts`
   - Plot equity curve over time
+  
 - [ ] **Image Upload for Trade Screenshots**
   - Import react-native-image-picker
   - Implement image selection in AddTradeScreen
-  - Upload to Firebase Storage via uploadTradeScreenshot()
+  - Upload to Supabase Storage via uploadTradeImage()
+  
 - [ ] **Weekly Review Modal**
   - Calculate stats for current week
   - Show patterns in wins/losses
   - Deviations summary
   - Emotional trend graph
+  
 - [ ] **Psychology Correlation Charts**
   - Mood vs Win Rate graph
   - Mood vs R:R quality scatter plot

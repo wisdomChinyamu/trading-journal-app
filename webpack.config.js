@@ -59,7 +59,7 @@ module.exports = async function (env, argv) {
         babelrc: false,
         presets: [
           "babel-preset-expo",
-          "@babel/preset-react",
+          ["@babel/preset-react", { runtime: "automatic" }],
           "@babel/preset-typescript",
         ],
         plugins: [

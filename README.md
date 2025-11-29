@@ -327,9 +327,9 @@ deleteChecklistItem(templateId, itemId);
 addPsychologyLog(userId, logData);
 getUserPsychologyLogs(userId);
 
-// Storage
-uploadTradeScreenshot(userId, tradeId, imageUri);
-deleteTradeScreenshot(screenshotUrl);
+// Storage (Deprecated - Use Supabase Storage instead)
+uploadTradeScreenshot(userId, tradeId, imageUri); // Deprecated
+deleteTradeScreenshot(screenshotUrl); // Deprecated
 ```
 
 ## 📝 Next Steps
@@ -349,7 +349,7 @@ deleteTradeScreenshot(screenshotUrl);
 - **No backend computation** needed for analytics
 - Firebase reads/writes are **optimized** with user ID filters
 - The checklist table supports **inline editing** for better UX
-- Screenshots are stored in **Firebase Storage** with user/trade organization
+- Screenshots are stored in **Supabase Storage** with user/trade organization
 
 ## 📦 Dependencies
 
