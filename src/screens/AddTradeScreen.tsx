@@ -50,12 +50,13 @@ export default function AddTradeScreen({
   navigation,
   route,
 }: AddTradeScreenProps) {
-  const userId = "current-user"; // Replace with actual user ID from context/auth
+  const userId = "current-user";
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(
     null
   );
   const [checklistItems, setChecklistItems] = useState<any[]>([]);
+  
   useEffect(() => {
     getUserStrategies(userId).then(setStrategies);
   }, []);
@@ -68,6 +69,7 @@ export default function AddTradeScreen({
       setChecklistItems([]);
     }
   }, [selectedStrategyId, strategies]);
+  
   const [checkedItems, setCheckedItems] = useState<string[]>([]);
   const [beforeImage, setBeforeImage] = useState<string>("");
   const [afterImage, setAfterImage] = useState<string>("");
@@ -87,7 +89,6 @@ export default function AddTradeScreen({
   const [rr, setRR] = useState<number | null>(null);
   const [confluenceScore, setConfluenceScore] = useState<number | null>(null);
 
-  // Calculate R:R when prices change
   useEffect(() => {
     if (entryPrice && stopLoss && takeProfit) {
       const rrValue = calculateRiskToReward(
@@ -100,12 +101,9 @@ export default function AddTradeScreen({
     }
   }, [entryPrice, stopLoss, takeProfit, direction]);
 
-  // Calculate confluence score when checklist selection changes
   useEffect(() => {
-    // This would be calculated based on user's checklist template items
-    // For now, we'll use a placeholder
     if (selectedChecklist.length > 0) {
-      const score = (selectedChecklist.length / 5) * 100; // Assuming 5 items max
+      const score = (selectedChecklist.length / 5) * 100;
       setConfluenceScore(parseFloat(score.toFixed(2)));
     } else {
       setConfluenceScore(null);
@@ -113,7 +111,6 @@ export default function AddTradeScreen({
   }, [selectedChecklist]);
 
   const handleSubmit = async () => {
-    // Validation
     if (!entryPrice || !stopLoss || !takeProfit) {
       Alert.alert(
         "Validation Error",
@@ -136,13 +133,9 @@ export default function AddTradeScreen({
       return;
     }
 
-    // Upload images to Supabase if present
     let beforeImageUrl = beforeImage;
     let afterImageUrl = afterImage;
     if (beforeImage && beforeImage.startsWith("blob:")) {
-      // Convert blob URL to File (web only)
-      // For demo, skip conversion
-      // Use tradeId or 'temp' for upload
       beforeImageUrl =
         (await uploadTradeImage("temp", beforeImage as any)) || beforeImage;
     }
@@ -150,7 +143,7 @@ export default function AddTradeScreen({
       afterImageUrl =
         (await uploadTradeImage("temp", afterImage as any)) || afterImage;
     }
-    // Create trade object
+    
     const newTrade: Partial<Trade> = {
       pair: pair as any,
       direction,
@@ -172,27 +165,74 @@ export default function AddTradeScreen({
       checklist: checkedItems,
     };
 
-    // Navigate back or submit
     navigation.goBack();
     Alert.alert("Success", `Trade recorded: ${pair} ${direction}`);
   };
 
+  const getGradeColor = (score: number) => {
+    if (score >= 90) return '#4caf50';
+    if (score >= 70) return '#81c784';
+    if (score >= 50) return '#00d4d4';
+    if (score >= 30) return '#ffa500';
+    return '#f44336';
+  };
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Add New Trade</Text>
+        <Text style={styles.subtitle}>Record your trading setup and execution</Text>
+      </View>
+
+      {/* Live Calculation Cards */}
+      <View style={styles.calculationCards}>
+        <View style={[styles.calcCard, { borderColor: '#00d4d4' }]}>
+          <Text style={styles.calcLabel}>Risk:Reward</Text>
+          <Text style={[styles.calcValue, { color: '#00d4d4' }]}>
+            {rr !== null ? `1:${rr.toFixed(2)}` : '—'}
+          </Text>
+          <View style={styles.calcIndicator}>
+            {rr !== null && rr >= 2 ? (
+              <Text style={styles.calcBadge}>✓ Good R:R</Text>
+            ) : (
+              <Text style={[styles.calcBadge, { opacity: 0.5 }]}>Calculating...</Text>
+            )}
+          </View>
+        </View>
+
+        <View style={[styles.calcCard, { borderColor: confluenceScore ? getGradeColor(confluenceScore) : '#444' }]}>
+          <Text style={styles.calcLabel}>Confluence</Text>
+          <Text style={[styles.calcValue, { color: confluenceScore ? getGradeColor(confluenceScore) : '#666' }]}>
+            {confluenceScore !== null ? `${confluenceScore.toFixed(0)}%` : '—'}
+          </Text>
+          <View style={styles.calcIndicator}>
+            <Text style={styles.calcBadge}>
+              Grade: {confluenceScore ? assignGrade(confluenceScore) : '—'}
+            </Text>
+          </View>
+        </View>
+      </View>
+
       {/* Pair Selection */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Pair</Text>
-        <View style={styles.buttonGroup}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Currency Pair</Text>
+          <View style={styles.sectionBadge}>
+            <Text style={styles.sectionBadgeText}>{pair}</Text>
+          </View>
+        </View>
+        <View style={styles.buttonGrid}>
           {PAIRS.map((p) => (
             <TouchableOpacity
               key={p}
-              style={[styles.button, pair === p && styles.buttonActive]}
+              style={[styles.gridButton, pair === p && styles.gridButtonActive]}
               onPress={() => setPair(p)}
             >
               <Text
                 style={[
-                  styles.buttonText,
-                  pair === p && styles.buttonTextActive,
+                  styles.gridButtonText,
+                  pair === p && styles.gridButtonTextActive,
                 ]}
               >
                 {p}
@@ -204,22 +244,34 @@ export default function AddTradeScreen({
 
       {/* Direction */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Direction</Text>
-        <View style={styles.buttonGroup}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Trade Direction</Text>
+        </View>
+        <View style={styles.directionGroup}>
           {DIRECTIONS.map((d) => (
             <TouchableOpacity
               key={d}
               style={[
-                styles.button,
-                direction === d && styles.buttonActive,
-                d === "Buy" && { backgroundColor: "#2d5d3d" },
+                styles.directionButton,
+                direction === d && styles.directionButtonActive,
+                d === "Buy" && direction === d && { 
+                  backgroundColor: '#4caf50',
+                  borderColor: '#4caf50'
+                },
+                d === "Sell" && direction === d && { 
+                  backgroundColor: '#f44336',
+                  borderColor: '#f44336'
+                },
               ]}
               onPress={() => setDirection(d as TradeDirection)}
             >
+              <Text style={styles.directionIcon}>
+                {d === "Buy" ? '↑' : '↓'}
+              </Text>
               <Text
                 style={[
-                  styles.buttonText,
-                  direction === d && styles.buttonTextActive,
+                  styles.directionText,
+                  direction === d && styles.directionTextActive,
                 ]}
               >
                 {d}
@@ -231,18 +283,27 @@ export default function AddTradeScreen({
 
       {/* Session */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Session</Text>
-        <View style={styles.buttonGroup}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Trading Session</Text>
+          <View style={styles.sessionIndicator}>
+            <View style={styles.sessionDot} />
+            <Text style={styles.sessionText}>{session}</Text>
+          </View>
+        </View>
+        <View style={styles.sessionGroup}>
           {SESSIONS.map((s) => (
             <TouchableOpacity
               key={s}
-              style={[styles.button, session === s && styles.buttonActive]}
+              style={[styles.sessionButton, session === s && styles.sessionButtonActive]}
               onPress={() => setSession(s as TradeSession)}
             >
+              <Text style={styles.sessionEmoji}>
+                {s === 'London' ? '🇬🇧' : s === 'NY' ? '🇺🇸' : '🌏'}
+              </Text>
               <Text
                 style={[
-                  styles.buttonText,
-                  session === s && styles.buttonTextActive,
+                  styles.sessionButtonText,
+                  session === s && styles.sessionButtonTextActive,
                 ]}
               >
                 {s}
@@ -254,68 +315,97 @@ export default function AddTradeScreen({
 
       {/* Price Inputs */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Prices</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Entry Price"
-          placeholderTextColor="#666"
-          value={entryPrice}
-          onChangeText={setEntryPrice}
-          keyboardType="decimal-pad"
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Stop Loss"
-          placeholderTextColor="#666"
-          value={stopLoss}
-          onChangeText={setStopLoss}
-          keyboardType="decimal-pad"
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Take Profit"
-          placeholderTextColor="#666"
-          value={takeProfit}
-          onChangeText={setTakeProfit}
-          keyboardType="decimal-pad"
-        />
-
-        {/* R:R Display */}
-        {rr !== null && (
-          <View style={styles.rrDisplay}>
-            <Text style={styles.rrLabel}>Risk:Reward</Text>
-            <Text style={styles.rrValue}>1:{rr.toFixed(2)}</Text>
+        <Text style={styles.sectionTitle}>Price Levels</Text>
+        <View style={styles.priceInputsContainer}>
+          <View style={styles.priceInputWrapper}>
+            <Text style={styles.inputLabel}>Entry Price</Text>
+            <View style={styles.inputWithIcon}>
+              <Text style={styles.inputIcon}>📍</Text>
+              <TextInput
+                style={styles.priceInput}
+                placeholder="0.00000"
+                placeholderTextColor="#666"
+                value={entryPrice}
+                onChangeText={setEntryPrice}
+                keyboardType="decimal-pad"
+              />
+            </View>
           </View>
-        )}
+
+          <View style={styles.priceInputWrapper}>
+            <Text style={styles.inputLabel}>Stop Loss</Text>
+            <View style={styles.inputWithIcon}>
+              <Text style={styles.inputIcon}>🛑</Text>
+              <TextInput
+                style={styles.priceInput}
+                placeholder="0.00000"
+                placeholderTextColor="#666"
+                value={stopLoss}
+                onChangeText={setStopLoss}
+                keyboardType="decimal-pad"
+              />
+            </View>
+          </View>
+
+          <View style={styles.priceInputWrapper}>
+            <Text style={styles.inputLabel}>Take Profit</Text>
+            <View style={styles.inputWithIcon}>
+              <Text style={styles.inputIcon}>🎯</Text>
+              <TextInput
+                style={styles.priceInput}
+                placeholder="0.00000"
+                placeholderTextColor="#666"
+                value={takeProfit}
+                onChangeText={setTakeProfit}
+                keyboardType="decimal-pad"
+              />
+            </View>
+          </View>
+        </View>
       </View>
 
       {/* Actual Exit (Optional) */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Exit Details (Optional)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Actual Exit Price"
-          placeholderTextColor="#666"
-          value={actualExit}
-          onChangeText={setActualExit}
-          keyboardType="decimal-pad"
-        />
-        <View style={styles.buttonGroup}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Exit Details</Text>
+          <Text style={styles.optionalBadge}>Optional</Text>
+        </View>
+        
+        <View style={styles.priceInputWrapper}>
+          <Text style={styles.inputLabel}>Actual Exit Price</Text>
+          <View style={styles.inputWithIcon}>
+            <Text style={styles.inputIcon}>✓</Text>
+            <TextInput
+              style={styles.priceInput}
+              placeholder="0.00000"
+              placeholderTextColor="#666"
+              value={actualExit}
+              onChangeText={setActualExit}
+              keyboardType="decimal-pad"
+            />
+          </View>
+        </View>
+
+        <View style={styles.resultGroup}>
           {["Win", "Loss", "Break-even"].map((r) => (
             <TouchableOpacity
               key={r}
               style={[
-                styles.button,
-                result === r && styles.buttonActive,
-                r === "Win" && styles.winButton,
-                r === "Loss" && styles.lossButton,
+                styles.resultButton,
+                result === r && styles.resultButtonActive,
+                r === "Win" && result === r && styles.resultWin,
+                r === "Loss" && result === r && styles.resultLoss,
+                r === "Break-even" && result === r && styles.resultBreakeven,
               ]}
               onPress={() => setResult(r as any)}
             >
+              <Text style={styles.resultIcon}>
+                {r === "Win" ? '✓' : r === "Loss" ? '✗' : '—'}
+              </Text>
               <Text
                 style={[
-                  styles.buttonText,
-                  result === r && styles.buttonTextActive,
+                  styles.resultButtonText,
+                  result === r && styles.resultButtonTextActive,
                 ]}
               >
                 {r}
@@ -326,156 +416,213 @@ export default function AddTradeScreen({
       </View>
 
       {/* Strategy Selection */}
+      {strategies.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Strategy Template</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.strategyGroup}>
+              {strategies.map((strategy) => (
+                <TouchableOpacity
+                  key={strategy.id}
+                  style={[
+                    styles.strategyCard,
+                    selectedStrategyId === strategy.id && styles.strategyCardActive,
+                  ]}
+                  onPress={() => {
+                    setSelectedStrategyId(strategy.id);
+                    setSetupType(strategy.name);
+                  }}
+                >
+                  <View style={styles.strategyIcon}>
+                    <Text style={styles.strategyIconText}>📋</Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.strategyName,
+                      selectedStrategyId === strategy.id && styles.strategyNameActive,
+                    ]}
+                  >
+                    {strategy.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Emotional State */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Strategy</Text>
-        <View style={styles.buttonGroup}>
-          {strategies.map((strategy) => (
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Emotional State</Text>
+          <View style={styles.emotionDisplay}>
+            <Text style={styles.emotionValue}>{emotion}/10</Text>
+          </View>
+        </View>
+        
+        <View style={styles.emotionSlider}>
+          {[...Array(10)].map((_, i) => (
             <TouchableOpacity
-              key={strategy.id}
+              key={i}
               style={[
-                styles.button,
-                selectedStrategyId === strategy.id && styles.buttonActive,
+                styles.emotionDot,
+                Number(emotion) > i && styles.emotionDotActive,
               ]}
-              onPress={() => {
-                setSelectedStrategyId(strategy.id);
-                setSetupType(strategy.name);
-              }}
+              onPress={() => setEmotion(String(i + 1))}
             >
-              <Text
-                style={[
-                  styles.buttonText,
-                  selectedStrategyId === strategy.id && styles.buttonTextActive,
-                  { fontSize: 11 },
-                ]}
-              >
-                {strategy.name}
-              </Text>
+              <Text style={styles.emotionDotText}>{i + 1}</Text>
             </TouchableOpacity>
           ))}
         </View>
-      </View>
 
-      {/* Emotional Rating */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Emotional Rating: {emotion}/10</Text>
-        <View style={styles.sliderContainer}>
-          <TextInput
-            style={styles.input}
-            value={emotion}
-            onChangeText={setEmotion}
-            keyboardType="numeric"
-            placeholder="1-10"
-            placeholderTextColor="#666"
-          />
+        <View style={styles.emotionLabels}>
+          <Text style={styles.emotionLabel}>Fearful</Text>
+          <Text style={styles.emotionLabel}>Confident</Text>
         </View>
       </View>
 
       {/* Rule Deviation */}
       <View style={styles.section}>
-        <View style={styles.deviationRow}>
-          <Text style={styles.sectionTitle}>Rule Deviation</Text>
+        <View style={styles.deviationCard}>
+          <View style={styles.deviationContent}>
+            <View style={styles.deviationIcon}>
+              <Text style={styles.deviationIconText}>⚠️</Text>
+            </View>
+            <View style={styles.deviationInfo}>
+              <Text style={styles.deviationTitle}>Rule Deviation</Text>
+              <Text style={styles.deviationSubtitle}>
+                Did you break any trading rules?
+              </Text>
+            </View>
+          </View>
           <Switch
             value={ruleDeviation}
             onValueChange={setRuleDeviation}
-            trackColor={{ false: "#444", true: "#81c784" }}
-            thumbColor={ruleDeviation ? "#4caf50" : "#f5f5f5"}
+            trackColor={{ false: "#444", true: "#f4433680" }}
+            thumbColor={ruleDeviation ? "#f44336" : "#f5f5f5"}
           />
         </View>
       </View>
 
       {/* Checklist Selection */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Checklist</Text>
-        <EditableChecklistTable
-          items={checklistItems}
-          onAddItem={(item) =>
-            setChecklistItems([
-              ...checklistItems,
-              { ...item, id: Date.now().toString(), createdAt: new Date() },
-            ])
-          }
-          onUpdateItem={(item) =>
-            setChecklistItems(
-              checklistItems.map((i) => (i.id === item.id ? item : i))
-            )
-          }
-          onDeleteItem={(id) =>
-            setChecklistItems(checklistItems.filter((i) => i.id !== id))
-          }
-        />
-        <View
-          style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            gap: 8,
-            marginTop: 8,
-          }}
-        >
-          {checklistItems.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={{
-                padding: 8,
-                borderRadius: 6,
-                backgroundColor: checkedItems.includes(item.id)
-                  ? "#00d4d4"
-                  : "#222",
-              }}
-              onPress={() =>
-                setCheckedItems(
-                  checkedItems.includes(item.id)
-                    ? checkedItems.filter((i) => i !== item.id)
-                    : [...checkedItems, item.id]
-                )
-              }
-            >
-              <Text
-                style={{
-                  color: checkedItems.includes(item.id) ? "#000" : "#fff",
-                }}
-              >
-                {item.label}
+      {checklistItems.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Setup Checklist</Text>
+            <View style={styles.checklistCounter}>
+              <Text style={styles.checklistCounterText}>
+                {checkedItems.length}/{checklistItems.length}
               </Text>
-            </TouchableOpacity>
-          ))}
+            </View>
+          </View>
+
+          <EditableChecklistTable
+            items={checklistItems}
+            onAddItem={(item) =>
+              setChecklistItems([
+                ...checklistItems,
+                { ...item, id: Date.now().toString(), createdAt: new Date() },
+              ])
+            }
+            onUpdateItem={(item) =>
+              setChecklistItems(
+                checklistItems.map((i) => (i.id === item.id ? item : i))
+              )
+            }
+            onDeleteItem={(id) =>
+              setChecklistItems(checklistItems.filter((i) => i.id !== id))
+            }
+          />
+
+          <View style={styles.checklistGrid}>
+            {checklistItems.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[
+                  styles.checklistChip,
+                  checkedItems.includes(item.id) && styles.checklistChipActive,
+                ]}
+                onPress={() =>
+                  setCheckedItems(
+                    checkedItems.includes(item.id)
+                      ? checkedItems.filter((i) => i !== item.id)
+                      : [...checkedItems, item.id]
+                  )
+                }
+              >
+                <View style={styles.checklistChipIcon}>
+                  <Text style={styles.checklistChipIconText}>
+                    {checkedItems.includes(item.id) ? '✓' : '○'}
+                  </Text>
+                </View>
+                <Text
+                  style={[
+                    styles.checklistChipText,
+                    checkedItems.includes(item.id) && styles.checklistChipTextActive,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
-      </View>
+      )}
 
       {/* Before/After Images */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Before Image</Text>
-        <ImageUploader
-          screenshots={beforeImage ? [beforeImage] : []}
-          onAdd={(uri) => setBeforeImage(uri)}
-          onRemove={() => setBeforeImage("")}
-        />
-        <Text style={styles.sectionTitle}>After Image</Text>
-        <ImageUploader
-          screenshots={afterImage ? [afterImage] : []}
-          onAdd={(uri) => setAfterImage(uri)}
-          onRemove={() => setAfterImage("")}
-        />
+        <Text style={styles.sectionTitle}>Chart Screenshots</Text>
+        
+        <View style={styles.imageSection}>
+          <View style={styles.imageCard}>
+            <View style={styles.imageHeader}>
+              <Text style={styles.imageLabel}>Before Entry</Text>
+              {beforeImage && <Text style={styles.imageCheck}>✓</Text>}
+            </View>
+            <ImageUploader
+              screenshots={beforeImage ? [beforeImage] : []}
+              onAdd={(uri) => setBeforeImage(uri)}
+              onRemove={() => setBeforeImage("")}
+            />
+          </View>
+
+          <View style={styles.imageCard}>
+            <View style={styles.imageHeader}>
+              <Text style={styles.imageLabel}>After Exit</Text>
+              {afterImage && <Text style={styles.imageCheck}>✓</Text>}
+            </View>
+            <ImageUploader
+              screenshots={afterImage ? [afterImage] : []}
+              onAdd={(uri) => setAfterImage(uri)}
+              onRemove={() => setAfterImage("")}
+            />
+          </View>
+        </View>
       </View>
+
       {/* Notes */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Notes</Text>
-        <TextInput
-          style={[styles.input, styles.notesInput]}
-          placeholder="Trade reflections, observations, lessons learned..."
-          placeholderTextColor="#666"
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          numberOfLines={4}
-        />
+        <Text style={styles.sectionTitle}>Trade Notes</Text>
+        <View style={styles.notesContainer}>
+          <TextInput
+            style={styles.notesInput}
+            placeholder="What was your thought process? What did you learn? Any observations about market conditions..."
+            placeholderTextColor="#666"
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            numberOfLines={6}
+          />
+        </View>
       </View>
 
       {/* Submit Button */}
       <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+        <Text style={styles.submitButtonIcon}>✓</Text>
         <Text style={styles.submitButtonText}>Record Trade</Text>
       </TouchableOpacity>
 
-      <View style={{ height: 30 }} />
+      <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
@@ -485,119 +632,503 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#0d0d0d",
     paddingHorizontal: 16,
-    paddingTop: 16,
+  },
+  header: {
+    paddingTop: 20,
+    paddingBottom: 16,
+    marginBottom: 8,
+  },
+  title: {
+    color: "#f5f5f5",
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    marginBottom: 4,
+  },
+  subtitle: {
+    color: "#aaa",
+    fontSize: 15,
+  },
+  calculationCards: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  calcCard: {
+    flex: 1,
+    backgroundColor: '#1a1a1a',
+    borderWidth: 2,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  calcLabel: {
+    color: '#aaa',
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  calcValue: {
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  calcIndicator: {
+    backgroundColor: 'rgba(0, 212, 212, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  calcBadge: {
+    color: '#00d4d4',
+    fontSize: 11,
+    fontWeight: '600',
   },
   section: {
     marginBottom: 24,
   },
-  sectionTitle: {
-    color: "#f5f5f5",
-    fontSize: 14,
-    fontWeight: "700",
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 12,
   },
-  input: {
-    backgroundColor: "#1a1a1a",
-    borderWidth: 1,
-    borderColor: "#00d4d4",
-    borderRadius: 8,
+  sectionTitle: {
     color: "#f5f5f5",
-    padding: 12,
-    marginBottom: 10,
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: "700",
   },
-  notesInput: {
-    height: 100,
-    textAlignVertical: "top",
+  sectionBadge: {
+    backgroundColor: '#00d4d420',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  buttonGroup: {
+  sectionBadgeText: {
+    color: '#00d4d4',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  optionalBadge: {
+    color: '#666',
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  buttonGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
-  button: {
-    flex: 0.48,
+  gridButton: {
+    flex: 0,
+    minWidth: 100,
     paddingVertical: 12,
-    paddingHorizontal: 10,
+    paddingHorizontal: 16,
     backgroundColor: "#1a1a1a",
     borderWidth: 1,
-    borderColor: "#444",
-    borderRadius: 6,
+    borderColor: "rgba(0, 212, 212, 0.3)",
+    borderRadius: 10,
     alignItems: "center",
-    justifyContent: "center",
   },
-  buttonActive: {
+  gridButtonActive: {
     backgroundColor: "#00d4d4",
     borderColor: "#00d4d4",
   },
-  buttonText: {
+  gridButtonText: {
     color: "#f5f5f5",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
   },
-  buttonTextActive: {
+  gridButtonTextActive: {
     color: "#0d0d0d",
   },
-  winButton: {
-    borderColor: "#4caf50",
+  directionGroup: {
+    flexDirection: 'row',
+    gap: 12,
   },
-  lossButton: {
-    borderColor: "#f44336",
-  },
-  rrDisplay: {
+  directionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
     backgroundColor: "#1a1a1a",
     borderWidth: 2,
-    borderColor: "#00d4d4",
-    borderRadius: 8,
-    padding: 16,
-    marginTop: 12,
-    alignItems: "center",
+    borderColor: "#444",
+    borderRadius: 12,
+    gap: 8,
   },
-  rrLabel: {
+  directionButtonActive: {
+    borderWidth: 2,
+  },
+  directionIcon: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  directionText: {
+    color: "#f5f5f5",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  directionTextActive: {
+    color: "#fff",
+  },
+  sessionIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sessionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4caf50',
+  },
+  sessionText: {
+    color: '#4caf50',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  sessionGroup: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  sessionButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 16,
+    backgroundColor: "#1a1a1a",
+    borderWidth: 1,
+    borderColor: "rgba(0, 212, 212, 0.3)",
+    borderRadius: 12,
+    gap: 6,
+  },
+  sessionButtonActive: {
+    backgroundColor: "#00d4d420",
+    borderColor: "#00d4d4",
+    borderWidth: 2,
+  },
+  sessionEmoji: {
+    fontSize: 24,
+  },
+  sessionButtonText: {
+    color: "#f5f5f5",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  sessionButtonTextActive: {
     color: "#00d4d4",
+  },
+  priceInputsContainer: {
+    gap: 12,
+  },
+  priceInputWrapper: {
+    gap: 8,
+  },
+  inputLabel: {
+    color: '#aaa',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  inputWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: "#1a1a1a",
+    borderWidth: 1,
+    borderColor: "#00d4d4",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+  inputIcon: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  priceInput: {
+    flex: 1,
+    color: "#f5f5f5",
+    paddingVertical: 14,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  resultGroup: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  resultButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    backgroundColor: "#1a1a1a",
+    borderWidth: 2,
+    borderColor: "#444",
+    borderRadius: 10,
+    gap: 6,
+  },
+  resultButtonActive: {
+    borderWidth: 2,
+  },
+  resultWin: {
+    backgroundColor: '#4caf50',
+    borderColor: '#4caf50',
+  },
+  resultLoss: {
+    backgroundColor: '#f44336',
+    borderColor: '#f44336',
+  },
+  resultBreakeven: {
+    backgroundColor: '#ffa500',
+    borderColor: '#ffa500',
+  },
+  resultIcon: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  resultButtonText: {
+    color: "#f5f5f5",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  resultButtonTextActive: {
+    color: "#fff",
+  },
+  strategyGroup: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  strategyCard: {
+    minWidth: 120,
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: "#1a1a1a",
+    borderWidth: 1,
+    borderColor: "rgba(0, 212, 212, 0.3)",
+    borderRadius: 12,
+    gap: 8,
+  },
+  strategyCardActive: {
+    backgroundColor: "#00d4d420",
+    borderColor: "#00d4d4",
+    borderWidth: 2,
+  },
+  strategyIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 212, 212, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  strategyIconText: {
+    fontSize: 20,
+  },
+  strategyName: {
+    color: "#f5f5f5",
     fontSize: 12,
     fontWeight: "600",
-    marginBottom: 4,
+    textAlign: 'center',
   },
-  rrValue: {
-    color: "#f5f5f5",
-    fontSize: 24,
-    fontWeight: "700",
-  },
-  confluenceDisplay: {
-    backgroundColor: "#1a1a1a",
-    borderWidth: 2,
-    borderColor: "#00d4d4",
-    borderRadius: 8,
-    padding: 16,
-    alignItems: "center",
-  },
-  confluenceValue: {
-    color: "#f5f5f5",
-    fontSize: 28,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  confluenceGrade: {
+  strategyNameActive: {
     color: "#00d4d4",
+  },
+  emotionDisplay: {
+    backgroundColor: '#ffa50020',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  emotionValue: {
+    color: '#ffa500',
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: '700',
   },
-  deviationRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  emotionSlider: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
-  sliderContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+  emotionDot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#1a1a1a',
+    borderWidth: 2,
+    borderColor: '#444',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emotionDotActive: {
+    backgroundColor: '#ffa500',
+    borderColor: '#ffa500',
+  },
+  emotionDotText: {
+    color: '#f5f5f5',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  emotionLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  emotionLabel: {
+    color: '#666',
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  deviationCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 67, 54, 0.3)',
+    borderRadius: 12,
+    padding: 16,
+  },
+  deviationContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  deviationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(244, 67, 54, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deviationIconText: {
+    fontSize: 20,
+  },
+  deviationInfo: {
+    flex: 1,
+  },
+  deviationTitle: {
+    color: '#f5f5f5',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  deviationSubtitle: {
+    color: '#aaa',
+    fontSize: 12,
+  },
+  checklistCounter: {
+    backgroundColor: '#00d4d420',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  checklistCounterText: {
+    color: '#00d4d4',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  checklistGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  checklistChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: '#444',
+    borderRadius: 10,
+    gap: 8,
+  },
+  checklistChipActive: {
+    backgroundColor: '#00d4d420',
+    borderColor: '#00d4d4',
+  },
+  checklistChipIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0, 212, 212, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checklistChipIconText: {
+    color: '#00d4d4',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  checklistChipText: {
+    color: '#f5f5f5',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  checklistChipTextActive: {
+    color: '#00d4d4',
+  },
+  imageSection: {
+    gap: 16,
+  },
+  imageCard: {
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 212, 212, 0.2)',
+    borderRadius: 12,
+    padding: 12,
+  },
+  imageHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  imageLabel: {
+    color: '#aaa',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  imageCheck: {
+    color: '#4caf50',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  notesContainer: {
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: '#00d4d4',
+    borderRadius: 12,
+    padding: 4,
+  },
+  notesInput: {
+    color: '#f5f5f5',
+    fontSize: 14,
+    padding: 12,
+    minHeight: 120,
+    textAlignVertical: 'top',
   },
   submitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: "#00d4d4",
-    paddingVertical: 16,
-    borderRadius: 8,
-    alignItems: "center",
+    paddingVertical: 18,
+    borderRadius: 12,
     marginBottom: 24,
+    gap: 8,
+  },
+  submitButtonIcon: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0d0d0d',
   },
   submitButtonText: {
     color: "#0d0d0d",

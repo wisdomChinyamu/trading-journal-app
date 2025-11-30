@@ -29,7 +29,6 @@ export default function DashboardScreen() {
   const { colors, mode } = useTheme();
 
   const trades = state.trades || [];
-  // Build equity series: cumulative PnL by trade date
   const equitySeries = React.useMemo(() => {
     if (!trades || trades.length === 0) return [];
     const sorted = [...trades].sort(
@@ -38,7 +37,6 @@ export default function DashboardScreen() {
     );
     let acc = 0;
     return sorted.map((t) => {
-      // Use explicit pnl if available; otherwise use simple +1/-1 per result
       const delta =
         (t as any).pnl ??
         (t.result === "Win" ? 1 : t.result === "Loss" ? -1 : 0);
@@ -49,6 +47,7 @@ export default function DashboardScreen() {
       };
     });
   }, [trades]);
+  
   const winLossRatio = calculateWinLossRatio(trades);
   const pnlStats = calculatePnL(trades);
 
@@ -60,127 +59,210 @@ export default function DashboardScreen() {
         ).toFixed(1)
       : "0";
 
-  // Responsive layout: web/desktop side-by-side, mobile stacked
   const isWeb = Platform.OS === "web";
+  
   return (
     <ScreenLayout style={{ backgroundColor: colors.background }}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
+        {/* Enhanced Header with Gradient Accent */}
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>
-            Caprianne Trdz
-          </Text>
+          <View style={styles.headerGradient}>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Caprianne Trdz
+            </Text>
+            <View style={styles.accentLine} />
+          </View>
           <Text style={[styles.subtitle, { color: colors.subtext }]}>
-            Trading Dashboard
+            Trading Performance Dashboard
           </Text>
         </View>
 
-        {/* Quick Stats */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.statsContainer}
-        >
-          <StatBox
-            label="Win Rate"
-            value={`${winLossRatio.wins}/${winLossRatio.losses}`}
-          />
-          <StatBox
-            label="Total P&L"
-            value={pnlStats.totalPnL}
-            unit="$"
-            color={pnlStats.totalPnL > 0 ? colors.profitEnd : colors.lossEnd}
-          />
-          <StatBox
-            label="Avg P&L"
-            value={pnlStats.avgPnL}
-            unit="$"
-            color="#00d4d4"
-          />
-          <StatBox label="Emotion" value={todayEmotionalRating} unit="/10" />
-        </ScrollView>
+        {/* Enhanced Quick Stats Grid */}
+        <View style={styles.statsGrid}>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <View style={styles.statIconContainer}>
+              <View style={[styles.statIcon, { backgroundColor: '#00d4d420' }]}>
+                <Text style={styles.statIconText}>📊</Text>
+              </View>
+            </View>
+            <Text style={[styles.statLabel, { color: colors.subtext }]}>Win Rate</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>
+              {winLossRatio.wins}/{winLossRatio.losses}
+            </Text>
+            <View style={styles.statBar}>
+              <View 
+                style={[
+                  styles.statBarFill, 
+                  { 
+                    width: `${(winLossRatio.wins / (winLossRatio.wins + winLossRatio.losses) * 100)}%`,
+                    backgroundColor: colors.profitEnd 
+                  }
+                ]} 
+              />
+            </View>
+          </View>
 
-        {/* Equity + Calendar + Weekly Summary */}
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <View style={styles.statIconContainer}>
+              <View style={[styles.statIcon, { backgroundColor: pnlStats.totalPnL > 0 ? '#4caf5020' : '#f4433620' }]}>
+                <Text style={styles.statIconText}>{pnlStats.totalPnL > 0 ? '📈' : '📉'}</Text>
+              </View>
+            </View>
+            <Text style={[styles.statLabel, { color: colors.subtext }]}>Total P&L</Text>
+            <Text style={[styles.statValue, { color: pnlStats.totalPnL > 0 ? colors.profitEnd : colors.lossEnd }]}>
+              ${pnlStats.totalPnL}
+            </Text>
+            <Text style={[styles.statSubtext, { color: colors.subtext }]}>
+              Avg: ${pnlStats.avgPnL}
+            </Text>
+          </View>
+
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <View style={styles.statIconContainer}>
+              <View style={[styles.statIcon, { backgroundColor: '#00d4d420' }]}>
+                <Text style={styles.statIconText}>🎯</Text>
+              </View>
+            </View>
+            <Text style={[styles.statLabel, { color: colors.subtext }]}>Confluence</Text>
+            <Text style={[styles.statValue, { color: colors.highlight }]}>
+              {avgConfluenceScore}
+            </Text>
+            <Text style={[styles.statSubtext, { color: colors.subtext }]}>
+              Average Score
+            </Text>
+          </View>
+
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <View style={styles.statIconContainer}>
+              <View style={[styles.statIcon, { backgroundColor: '#ffa50020' }]}>
+                <Text style={styles.statIconText}>🧠</Text>
+              </View>
+            </View>
+            <Text style={[styles.statLabel, { color: colors.subtext }]}>Emotion</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>
+              {todayEmotionalRating}/10
+            </Text>
+            <View style={styles.emotionIndicator}>
+              {[...Array(10)].map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.emotionDot,
+                    { backgroundColor: i < todayEmotionalRating ? '#ffa500' : colors.neutral }
+                  ]}
+                />
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* Main Content Layout */}
         <View style={isWeb ? styles.row : undefined}>
           <View style={isWeb ? styles.leftCol : undefined}>
-            <Card>
+            {/* Enhanced Equity Chart Card */}
+            <View style={[styles.chartCard, { backgroundColor: colors.surface }]}>
+              <View style={styles.cardHeader}>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>Equity Curve</Text>
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{trades.length} Trades</Text>
+                </View>
+              </View>
               <EquityChart series={equitySeries} />
-            </Card>
-            <Card>
+            </View>
+
+            {/* Enhanced Calendar Card */}
+            <View style={[styles.chartCard, { backgroundColor: colors.surface }]}>
+              <View style={styles.cardHeader}>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>Trading Calendar</Text>
+                <Text style={[styles.cardSubtitle, { color: colors.subtext }]}>
+                  Tap a day to view trades
+                </Text>
+              </View>
               <CalendarHeatmap
                 trades={trades}
                 onDayPress={(date) => setSelectedDate(date)}
                 theme={mode}
               />
-            </Card>
-          </View>
-          <View style={isWeb ? styles.rightCol : undefined}>
-            <Card>
-              {/* Weekly Summary Panel */}
-              <WeeklySummaryPanel trades={trades} />
-            </Card>
-          </View>
-        </View>
-        {/* On mobile, show WeeklySummaryPanel below calendar */}
-        {!isWeb && (
-          <Card>
-            <WeeklySummaryPanel trades={trades} />
-          </Card>
-        )}
+            </View>
 
-        {/* Trade Distribution */}
-        <Card>
-          <Text style={styles.cardTitle}>Grade Distribution</Text>
-          <View style={styles.gradeRow}>
-            {(["A+", "A", "B", "C", "D"] as const).map((grade) => {
-              const count = trades.filter((t) => t.grade === grade).length;
-              return (
-                <View key={grade} style={styles.gradeBox}>
-                  <Text style={styles.gradeLabel}>{grade}</Text>
-                  <Text style={styles.gradeValue}>{count}</Text>
-                </View>
-              );
-            })}
-          </View>
-        </Card>
-
-        {/* Confluence Score */}
-        <Card>
-          <View style={styles.confluenceHeader}>
-            <Text style={styles.cardTitle}>Avg Confluence Score</Text>
-            <View style={styles.scoreCircle}>
-              <Text style={styles.scoreValue}>{avgConfluenceScore}</Text>
+            {/* Enhanced Grade Distribution */}
+            <View style={[styles.chartCard, { backgroundColor: colors.surface }]}>
+              <View style={styles.cardHeader}>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>Grade Distribution</Text>
+              </View>
+              <View style={styles.gradeContainer}>
+                {(["A+", "A", "B", "C", "D"] as const).map((grade) => {
+                  const count = trades.filter((t) => t.grade === grade).length;
+                  const total = trades.length || 1;
+                  const percentage = (count / total) * 100;
+                  
+                  return (
+                    <View key={grade} style={styles.gradeItem}>
+                      <View style={styles.gradeHeader}>
+                        <Text style={[styles.gradeLabel, { color: colors.text }]}>{grade}</Text>
+                        <Text style={[styles.gradeCount, { color: colors.subtext }]}>{count}</Text>
+                      </View>
+                      <View style={[styles.gradeBar, { backgroundColor: colors.neutral }]}>
+                        <View 
+                          style={[
+                            styles.gradeBarFill,
+                            { 
+                              width: `${percentage}%`,
+                              backgroundColor: grade.startsWith('A') ? colors.profitEnd : 
+                                             grade === 'B' ? colors.highlight :
+                                             colors.lossEnd
+                            }
+                          ]} 
+                        />
+                      </View>
+                      <Text style={[styles.gradePercentage, { color: colors.subtext }]}>
+                        {percentage.toFixed(0)}%
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
             </View>
           </View>
-        </Card>
 
-        {/* Action Buttons */}
+          <View style={isWeb ? styles.rightCol : undefined}>
+            <View style={[styles.chartCard, { backgroundColor: colors.surface }]}>
+              <WeeklySummaryPanel trades={trades} />
+            </View>
+          </View>
+        </View>
+
+        {!isWeb && (
+          <View style={[styles.chartCard, { backgroundColor: colors.surface }]}>
+            <WeeklySummaryPanel trades={trades} />
+          </View>
+        )}
+
+        {/* Enhanced Action Buttons */}
         <View style={styles.actionButtons}>
           <TouchableOpacity
-            style={[styles.actionButton, styles.addTradeButton]}
+            style={[styles.actionButton, styles.primaryButton]}
             onPress={() => setShowAddTrade(true)}
           >
-            <Text style={[styles.actionButtonText, { color: colors.text }]}>
-              + Add Trade
-            </Text>
+            <Text style={styles.actionButtonIcon}>+</Text>
+            <Text style={styles.actionButtonText}>Add Trade</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionButton, styles.journalButton]}>
+          <TouchableOpacity style={[styles.actionButton, styles.secondaryButton]}>
+            <Text style={styles.actionButtonIcon}>📝</Text>
             <Text style={[styles.actionButtonText, { color: colors.text }]}>
-              📔 Journal
+              Open Journal
             </Text>
           </TouchableOpacity>
         </View>
 
-        <View style={{ height: 20 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Add Trade Modal */}
       <Modal
         visible={showAddTrade}
         animationType="none"
         onRequestClose={() => setShowAddTrade(false)}
       >
-        {/** Animated container for modal entrance */}
         <AddTradeModalAnimated
           visible={showAddTrade}
           onClose={() => setShowAddTrade(false)}
@@ -191,7 +273,6 @@ export default function DashboardScreen() {
         />
       </Modal>
 
-      {/* Day Trades Modal */}
       <Modal
         visible={!!selectedDate}
         animationType="none"
@@ -281,22 +362,17 @@ function DayTradesModalAnimated({ visible, date, trades, onClose }: any) {
         opacity,
       }}
     >
-      <Card>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 8,
-          }}
-        >
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>
-            {date ? new Date(date).toLocaleDateString() : ""}
+      <View style={[styles.modalCard, { backgroundColor: colors.surface }]}>
+        <View style={styles.modalHeader}>
+          <Text style={[styles.modalTitle, { color: colors.text }]}>
+            {date ? new Date(date).toLocaleDateString('en-US', { 
+              weekday: 'long', 
+              month: 'long', 
+              day: 'numeric' 
+            }) : ""}
           </Text>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={{ color: colors.highlight, fontWeight: "700" }}>
-              Close
-            </Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Text style={{ color: colors.highlight, fontSize: 24 }}>×</Text>
           </TouchableOpacity>
         </View>
 
@@ -314,9 +390,10 @@ function DayTradesModalAnimated({ visible, date, trades, onClose }: any) {
 
             if (tradesOnDate.length === 0) {
               return (
-                <View style={{ padding: 16, alignItems: "center" }}>
-                  <Text style={{ color: colors.subtext }}>
-                    No trades for this day.
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateIcon}>📭</Text>
+                  <Text style={[styles.emptyStateText, { color: colors.subtext }]}>
+                    No trades recorded for this day
                   </Text>
                 </View>
               );
@@ -327,7 +404,7 @@ function DayTradesModalAnimated({ visible, date, trades, onClose }: any) {
             ));
           })()}
         </ScrollView>
-      </Card>
+      </View>
     </Animated.View>
   );
 }
@@ -336,7 +413,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 24,
+    gap: 16,
   },
   leftCol: {
     flex: 2,
@@ -344,128 +421,229 @@ const styles = StyleSheet.create({
   },
   rightCol: {
     flex: 1,
-    minWidth: 180,
-    maxWidth: 260,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#0d0d0d",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  title: {
-    color: "#f5f5f5",
-    fontSize: 28,
-    fontWeight: "700",
-    marginBottom: 24,
-  },
-  statsGrid: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 16,
-  },
-  card: {
-    flex: 1,
-    backgroundColor: "#1a1a1a",
-    borderWidth: 1,
-    borderColor: "#00d4d4",
-    borderRadius: 8,
-    padding: 16,
-    alignItems: "center",
-  },
-  cardLabel: {
-    color: "#00d4d4",
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  cardValue: {
-    color: "#f5f5f5",
-    fontSize: 24,
-    fontWeight: "700",
-  },
-  section: {
-    marginTop: 24,
-  },
-  sectionTitle: {
-    color: "#f5f5f5",
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 12,
+    minWidth: 280,
+    maxWidth: 360,
   },
   header: {
+    marginBottom: 24,
+    paddingTop: 8,
+  },
+  headerGradient: {
     marginBottom: 8,
   },
-  subtitle: {
-    fontSize: 14,
-    marginTop: 6,
+  title: {
+    fontSize: 32,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    marginBottom: 8,
   },
-  statsContainer: {
+  accentLine: {
+    height: 3,
+    width: 60,
+    backgroundColor: '#00d4d4',
+    borderRadius: 2,
+  },
+  subtitle: {
+    fontSize: 15,
+    fontWeight: "500",
+    opacity: 0.8,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 20,
+  },
+  statCard: {
+    flex: 1,
+    minWidth: 140,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 212, 212, 0.1)',
+  },
+  statIconContainer: {
+    marginBottom: 12,
+  },
+  statIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statIconText: {
+    fontSize: 20,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  statSubtext: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  statBar: {
+    height: 4,
+    backgroundColor: 'rgba(0, 212, 212, 0.1)',
+    borderRadius: 2,
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+  statBarFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  emotionIndicator: {
+    flexDirection: 'row',
+    gap: 3,
+    marginTop: 8,
+  },
+  emotionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  chartCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 212, 212, 0.1)',
+  },
+  cardHeader: {
     marginBottom: 16,
   },
   cardTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 8,
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
   },
-  gradeRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  cardSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
   },
-  gradeBox: {
-    alignItems: "center",
-    padding: 12,
-    flex: 1,
+  badge: {
+    backgroundColor: 'rgba(0, 212, 212, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
+  badgeText: {
+    color: '#00d4d4',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  gradeContainer: {
+    gap: 16,
+  },
+  gradeItem: {
+    gap: 8,
+  },
+  gradeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   gradeLabel: {
-    color: "#00d4d4",
-    fontWeight: "700",
-    marginBottom: 6,
+    fontSize: 16,
+    fontWeight: '700',
   },
-  gradeValue: {
-    color: "#f5f5f5",
-    fontSize: 18,
-    fontWeight: "700",
+  gradeCount: {
+    fontSize: 14,
+    fontWeight: '600',
   },
-  confluenceHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  gradeBar: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
   },
-  scoreCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#00d4d4",
-    justifyContent: "center",
-    alignItems: "center",
+  gradeBarFill: {
+    height: '100%',
+    borderRadius: 4,
   },
-  scoreValue: {
-    color: "#000",
-    fontWeight: "700",
+  gradePercentage: {
+    fontSize: 12,
+    textAlign: 'right',
   },
   actionButtons: {
-    marginTop: 12,
-  },
-  addTradeButton: {
-    marginBottom: 8,
-  },
-  journalButton: {
-    marginBottom: 8,
+    gap: 12,
+    marginTop: 8,
   },
   actionButton: {
-    backgroundColor: "#1a1a1a",
-    borderWidth: 1,
-    borderColor: "#00d4d4",
-    borderRadius: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginBottom: 10,
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+  },
+  primaryButton: {
+    backgroundColor: '#00d4d4',
+  },
+  secondaryButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#00d4d4',
+  },
+  actionButtonIcon: {
+    fontSize: 20,
+    color: '#0d0d0d',
+    fontWeight: '700',
   },
   actionButtonText: {
-    color: "#f5f5f5",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0d0d0d',
+  },
+  modalCard: {
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 212, 212, 0.2)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 212, 212, 0.1)',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    flex: 1,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyState: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyStateIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyStateText: {
+    fontSize: 15,
+    textAlign: 'center',
   },
 });

@@ -24,7 +24,7 @@ Caprianne Trdz is a cross-platform trading performance operating system built wi
 **Backend:**
 - Firebase Authentication (user login)
 - Firebase Firestore (trades, checklists, psychology logs)
-- Firebase Storage (trade screenshots)
+- Supabase Storage (trade screenshots) - migrated from Firebase Storage
 
 **Utilities:**
 - Client-side calculations: R:R, confluence scores, analytics
@@ -35,7 +35,8 @@ Caprianne Trdz is a cross-platform trading performance operating system built wi
 ```
 src/
 ├── config/
-│   └── firebase.ts           # Firebase initialization
+│   ├── firebase.ts           # Firebase initialization
+│   └── supabase.ts           # Supabase initialization
 ├── types/
 │   └── index.ts              # All TypeScript interfaces
 ├── context/
@@ -43,11 +44,17 @@ src/
 ├── hooks/
 │   └── useAppContext.ts      # Context hook
 ├── services/
-│   └── firebaseService.ts    # Firebase CRUD operations
+│   ├── firebaseService.ts    # Firebase CRUD operations
+│   └── supabaseImageService.ts # Supabase image operations
 ├── utils/
-│   └── calculations.ts       # R:R, confluence, analytics
+│   ├── calculations.ts       # R:R, confluence, analytics
+│   ├── chartingUtils.ts      # Chart helper functions
+│   └── tauriUtils.ts         # Tauri desktop utilities
 ├── components/
-│   └── EditableChecklistTable.tsx  # Table component for checklist editing
+│   ├── EditableChecklistTable.tsx  # Table component for checklist editing
+│   ├── ImageUploader.tsx     # Cross-platform image uploader
+│   ├── CalendarHeatmap.tsx   # Psychology logging calendar
+│   └── ... (various UI components)
 ├── navigation/
 │   └── TabNavigator.tsx      # Bottom tab + stack navigation
 └── screens/
@@ -93,9 +100,20 @@ EXPO_PUBLIC_FIREBASE_APP_ID=your_app_id
    - Navigate to Firebase Console -> Project Settings -> General -> Your apps
    - Copy the config values from the "Firebase SDK snippet" section
 
-> Note: If you skip this step, the app will run in offline mode with limited functionality.
+### 3. Configure Supabase (for image storage)
 
-### 3. Firestore Collections Schema
+1. Create a Supabase project at [supabase.com](https://supabase.com)
+2. Get your project URL and anon key from Settings -> API
+3. Add to your `.env.local`:
+
+```env
+EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+> Note: If you skip these steps, the app will run in offline mode with limited functionality.
+
+### 4. Firestore Collections Schema
 
 Create these collections in Firebase:
 
@@ -280,6 +298,97 @@ generateEquityCurve(trades, initialCapital);
 - Stack navigators per tab for detail screens
 - Modal presentations for trade entry
 
+## 🔧 Cross-Platform Compatibility
+
+This application has been enhanced with full cross-platform support:
+
+### Platform Support Matrix
+
+| Feature | Mobile (iOS/Android) | Web | Desktop (Tauri) |
+|---------|----------------------|-----|-----------------|
+| Trade Tracking | ✅ Full | ✅ Full | ✅ Full |
+| Analytics | ✅ Full | ✅ Full | ✅ Full |
+| SMC Checklists | ✅ Full | ✅ Full | ✅ Full |
+| Image Uploads | ✅ Full | ✅ Full | ✅ Full |
+| Psychology Logging | ✅ Full | ✅ Full | ✅ Full |
+
+### Key Cross-Platform Enhancements
+
+1. **Platform-Aware Navigation**
+   - Uses `@react-navigation/native-stack` for mobile
+   - Switches to `@react-navigation/bottom-tabs` for web
+   - Conditionally loads platform-specific modules
+
+2. **Safe Area Handling**
+   - Implements conditional `SafeAreaView` only on mobile platforms
+   - Prevents web build errors from native-only modules
+
+3. **Crypto Polyfills**
+   - Added crypto polyfills for web compatibility
+   - Resolves "Module not found: Can't resolve 'crypto'" errors
+
+4. **Image Handling**
+   - Platform-aware image picking implementation
+   - Uses `expo-image-picker` on mobile
+   - Web-based file input for browsers
+
+5. **Animation Support**
+   - Platform-specific animation configurations
+   - Web-safe animations using CSS transitions
+   - Native animations using React Native Animated API
+
+### Platform Detection
+
+The application automatically detects the platform at runtime and adjusts functionality accordingly:
+
+```typescript
+import { Platform } from 'react-native';
+
+if (Platform.OS === 'web') {
+  // Web-specific implementation
+} else {
+  // Native-specific implementation
+}
+```
+
+## 🚀 Running the Application
+
+### Development Mode
+
+**Mobile (Expo):**
+```bash
+npm start              # Start Expo server
+npm run android        # Run on Android
+npm run ios            # Run on iOS
+```
+
+**Web:**
+```bash
+npm run web            # Run on web browser
+```
+
+**Desktop (Tauri):**
+```bash
+npm run tauri dev      # Development mode
+```
+
+### Production Builds
+
+**Mobile:**
+```bash
+npm run build          # Build for app stores
+```
+
+**Web:**
+```bash
+npm run build-web      # Production web build
+```
+
+**Desktop:**
+```bash
+npm run tauri build    # Production build
+```
+
 ## 🔐 Firebase Security Rules
 
 Add these to your Firestore security rules:
@@ -305,67 +414,68 @@ match /trades/{userId}/{allPaths=**} {
 }
 ```
 
-## 🔗 Firebase Service Functions
+## 📈 Enhanced Features
 
-```typescript
-// Trades
-addTrade(userId, tradeData);
-updateTrade(tradeId, updates);
-deleteTrade(tradeId);
-getUserTrades(userId);
-getTrade(tradeId);
+### Improved Analytics Dashboard
 
-// Checklist
-createChecklistTemplate(userId, items);
-updateChecklistTemplate(templateId, items);
-getUserChecklistTemplate(userId);
-addChecklistItem(templateId, item);
-updateChecklistItem(templateId, item);
-deleteChecklistItem(templateId, itemId);
+Visualizes:
 
-// Psychology
-addPsychologyLog(userId, logData);
-getUserPsychologyLogs(userId);
+- Win rate (%)
+- Average R:R (1:X)
+- Profit factor
+- Performance by pair
+- Performance by session
+- Performance by setup type
+- Emotional correlation
+- Deviation rate (%)
+- Equity curve progression
 
-// Storage (Deprecated - Use Supabase Storage instead)
-uploadTradeScreenshot(userId, tradeId, imageUri); // Deprecated
-deleteTradeScreenshot(screenshotUrl); // Deprecated
-```
+### Advanced Psychology System
 
-## 📝 Next Steps
+Daily logging:
 
-1. **Set up Firebase project** (follow setup instructions above)
-2. **Initialize checklist template** from Settings screen
-3. **Add first trade** via Dashboard → New Trade
-4. **Customize checklist items** in Settings
-5. **Track psychology logs** daily
-6. **Review analytics** after 5+ trades
-7. **Export data** via Settings for backup
+- Emotional state (1-10)
+- Notes describing mindset
+- Deviations logged
+- Confidence rating
+- Session intentions
+- Calendar heatmap visualization
 
-## 🐛 Development Notes
+### Real-time Calculations
 
-- All calculations are **client-side** for performance
-- State management uses **React Context** (easily upgradeable to Redux)
-- **No backend computation** needed for analytics
-- Firebase reads/writes are **optimized** with user ID filters
-- The checklist table supports **inline editing** for better UX
-- Screenshots are stored in **Supabase Storage** with user/trade organization
+All calculations happen client-side in real-time:
+
+- Risk to Reward ratios
+- Confluence scores
+- Trade grading
+- Performance metrics
+- Equity curve generation
+
+## 🧪 Testing
+
+Cross-platform testing completed:
+
+- ✅ iOS simulator
+- ✅ Android emulator
+- ✅ Chrome/Firefox/Safari browsers
+- ✅ Windows/macOS/Linux desktop builds
 
 ## 📦 Dependencies
 
 See `package.json` for complete list. Key packages:
 
-- `firebase`: Backend
-- `react-navigation`: Navigation
+- `firebase`: Backend services
+- `@react-navigation/native`: Cross-platform navigation
 - `react-native-gesture-handler`: Gesture support
 - `react-native-reanimated`: Smooth animations
-- `framer-motion`: Web animations (optional for web platform)
+- `@tauri-apps/api`: Desktop integration
+- `supabase`: Image storage
 
 ## 🚀 Deployment
 
 **Android APK**: `npm run android` → build via Expo or Android Studio
 **iOS IPA**: `npm run ios` → build via Xcode
-**Web**: Deploy to Vercel/Netlify with `npm run web`
+**Web**: Deploy to Vercel/Netlify with `npm run build-web`
 **Desktop**: Build with `npm run tauri build`
 
 ---

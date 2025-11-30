@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Dimensions, Pressable, Platform, Animated } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Pressable, Platform, Animated, TouchableOpacity } from 'react-native';
 import { Trade } from '../types';
 import { useTheme } from './ThemeProvider';
 import { breakpoints } from '../theme/theme';
@@ -13,16 +13,13 @@ interface CalendarHeatmapProps {
 export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: CalendarHeatmapProps) {
   const { colors } = useTheme();
   const now = new Date();
-  // monthIndex allows navigation between months (0-11 for months in a given year)
   const [monthIndex, setMonthIndex] = useState(now.getMonth());
   const [yearIdx, setYearIdx] = useState(now.getFullYear());
   const year = yearIdx;
   const month = monthIndex;
 
-  // Track animated scale values for each day cell
   const scaleAnimations = useRef<Record<string, Animated.Value>>({}).current;
 
-  // Responsive layout based on window dimensions
   const [windowWidth, setWindowWidth] = useState(Dimensions.get('window').width);
   const isTablet = windowWidth >= breakpoints.tablet;
   const isDesktop = windowWidth >= breakpoints.desktop;
@@ -34,11 +31,9 @@ export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: 
     return () => subscription?.remove();
   }, []);
 
-  // Get first day of month and number of days
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  // Group trades by date
   const tradesByDate = useMemo(() => {
     const grouped: Record<string, Trade[]> = {};
     trades.forEach((trade) => {
@@ -49,7 +44,6 @@ export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: 
     return grouped;
   }, [trades]);
 
-  // Helper: blend two hex colors by factor t (0..1)
   const blendHex = (a: string, b: string, t: number) => {
     const hexToRgb = (h: string) => {
       const san = h.replace('#', '');
@@ -64,14 +58,12 @@ export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: 
     return `rgb(${r}, ${g}, ${b2})`;
   };
 
-  // Calculate day color based on trades (scaled by magnitude)
   const getDayColor = (day: number) => {
     const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const dayTrades = tradesByDate[dateKey] || [];
 
     if (dayTrades.length === 0) return colors.neutral;
 
-    // Use a simple PnL metric: wins - losses, magnitude by number of trades
     const totalPnL = dayTrades.reduce((sum, t) => sum + (t.result === 'Win' ? 1 : t.result === 'Loss' ? -1 : 0), 0);
 
     const maxAbsPnL = Math.max(1, ...Object.keys(tradesByDate).map((k) => Math.abs(tradesByDate[k].reduce((s, t) => s + (t.result === 'Win' ? 1 : t.result === 'Loss' ? -1 : 0), 0))));
@@ -127,7 +119,7 @@ export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: 
   const handleDayCellPressIn = (dayKey: string) => {
     const scaleValue = getScaleAnimatedValue(dayKey);
     Animated.spring(scaleValue, {
-      toValue: 0.95,
+      toValue: 0.9,
       useNativeDriver: Platform.OS !== 'web',
       tension: 100,
       friction: 8,
@@ -144,54 +136,129 @@ export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: 
     }).start();
   };
 
-  // Responsive width calculation for day cells
-  const getResponsiveCellWidth = (): any => {
-    if (isDesktop) {
-      return { flex: 0, width: '12%', minWidth: 60 };
+  const goToPrevMonth = () => {
+    if (month === 0) {
+      setMonthIndex(11);
+      setYearIdx(year - 1);
+    } else {
+      setMonthIndex(month - 1);
     }
-    if (isTablet) {
-      return { flex: 0, width: '13%', minWidth: 48 };
-    }
-    return { flex: 0, width: '14.28%', minWidth: 40 };
   };
 
-  // Responsive width calculation for day labels
-  const getResponsiveLabelWidth = (): any => {
+  const goToNextMonth = () => {
+    if (month === 11) {
+      setMonthIndex(0);
+      setYearIdx(year + 1);
+    } else {
+      setMonthIndex(month + 1);
+    }
+  };
+
+  const goToToday = () => {
+    const today = new Date();
+    setMonthIndex(today.getMonth());
+    setYearIdx(today.getFullYear());
+  };
+
+  const getResponsiveCellWidth = (): any => {
     if (isDesktop) {
-      return { flex: 0, width: '12%', minWidth: 60 };
+      return { flex: 0, width: '12%', minWidth: 50 };
     }
     if (isTablet) {
-      return { flex: 0, width: '13%', minWidth: 48 };
+      return { flex: 0, width: '13%', minWidth: 45 };
     }
-    return { flex: 0, width: '14.28%', minWidth: 40 };
+    return { flex: 0, width: '14.28%', minWidth: 38 };
+  };
+
+  const getResponsiveLabelWidth = (): any => {
+    if (isDesktop) {
+      return { flex: 0, width: '12%', minWidth: 50 };
+    }
+    if (isTablet) {
+      return { flex: 0, width: '13%', minWidth: 45 };
+    }
+    return { flex: 0, width: '14.28%', minWidth: 38 };
   };
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.title, { color: colors.text }]}>
-        {new Date(year, month).toLocaleDateString('default', { month: 'long', year: 'numeric' })}
-      </Text>
+      {/* Header with Navigation */}
+      <View style={styles.header}>
+        <View>
+          <Text style={[styles.monthYear, { color: colors.text }]}>
+            {new Date(year, month).toLocaleDateString('default', { month: 'long', year: 'numeric' })}
+          </Text>
+          <Text style={[styles.subtitle, { color: colors.subtext }]}>
+            {trades.filter(t => {
+              const tradeMonth = new Date(t.createdAt).getMonth();
+              const tradeYear = new Date(t.createdAt).getFullYear();
+              return tradeMonth === month && tradeYear === year;
+            }).length} trades this month
+          </Text>
+        </View>
+        <View style={styles.navButtons}>
+          <TouchableOpacity 
+            style={[styles.navButton, { backgroundColor: colors.neutral }]}
+            onPress={goToPrevMonth}
+          >
+            <Text style={styles.navIcon}>‹</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.todayButton, { backgroundColor: colors.highlight }]}
+            onPress={goToToday}
+          >
+            <Text style={styles.todayText}>Today</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.navButton, { backgroundColor: colors.neutral }]}
+            onPress={goToNextMonth}
+          >
+            <Text style={styles.navIcon}>›</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
-      {tooltip && Platform.OS === 'web' && (
+      {/* Tooltip */}
+      {tooltip && (
         <View style={[styles.tooltip, { backgroundColor: colors.surface }]}> 
-          <Text style={[styles.tooltipText, { color: colors.text }]}>{tooltip.date}</Text>
-          <Text style={[styles.tooltipText, { color: colors.subtext }]}>
-            {tooltip.count} trade(s) • PnL: {tooltip.pnl}
+          <View style={styles.tooltipHeader}>
+            <Text style={[styles.tooltipDate, { color: colors.text }]}>
+              {new Date(tooltip.date).toLocaleDateString('default', { month: 'short', day: 'numeric' })}
+            </Text>
+            <View style={[
+              styles.tooltipBadge,
+              { backgroundColor: tooltip.pnl > 0 ? '#4caf5020' : tooltip.pnl < 0 ? '#f4433620' : '#2a2a2a' }
+            ]}>
+              <Text style={[
+                styles.tooltipPnl,
+                { color: tooltip.pnl > 0 ? colors.profitEnd : tooltip.pnl < 0 ? colors.lossEnd : colors.subtext }
+              ]}>
+                {tooltip.pnl > 0 ? '+' : ''}{tooltip.pnl}
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.tooltipTrades, { color: colors.subtext }]}>
+            {tooltip.count} {tooltip.count === 1 ? 'trade' : 'trades'}
           </Text>
         </View>
       )}
 
+      {/* Calendar Grid */}
       <View style={styles.calendar}>
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-          <Text key={day} style={[styles.dayLabel, { color: colors.subtext }, getResponsiveLabelWidth()]}>
+        {/* Day Headers */}
+        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => (
+          <Text key={`${day}-${idx}`} style={[styles.dayLabel, { color: colors.subtext }, getResponsiveLabelWidth()]}>
             {day}
           </Text>
         ))}
 
+        {/* Day Cells */}
         {weeks.map((week, weekIdx) =>
           week.map((day, dayIdx) => {
             const dayKey = `${weekIdx}-${dayIdx}`;
             const scaleValue = getScaleAnimatedValue(dayKey);
+            const isToday = day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
+            
             return (
               <Animated.View
                 key={dayKey}
@@ -205,10 +272,8 @@ export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: 
                 <Pressable
                   accessible
                   accessibilityRole="button"
-                  // web: allow tab focus when day exists
                   // @ts-ignore
                   tabIndex={day ? 0 : -1}
-                  // keyboard activation for web/desktop (Enter / Space)
                   // @ts-ignore
                   onKeyDown={(e: any) => {
                     if (!day) return;
@@ -223,25 +288,52 @@ export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: 
                     styles.dayCell,
                     {
                       backgroundColor: day ? getDayColor(day) : 'transparent',
-                      opacity: pressed ? 0.85 : 1,
-                      borderWidth: focusedDay === day ? 2 : 0,
-                      borderColor: focusedDay === day ? colors.highlight : 'transparent',
+                      opacity: pressed ? 0.8 : 1,
+                      borderWidth: isToday ? 2 : focusedDay === day ? 2 : 1,
+                      borderColor: isToday ? colors.highlight : focusedDay === day ? colors.highlight : 'rgba(255,255,255,0.1)',
                     },
                   ]}
                   onPress={() => day && onDayPress?.(new Date(year, month, day))}
-                  // onMouseEnter / onMouseLeave are web-only; TypeScript defs don't include them for Pressable
                   // @ts-ignore
                   onMouseEnter={() => day && handleMouseEnter(day)}
                   // @ts-ignore
                   onMouseLeave={() => day && handleMouseLeave()}
                   disabled={!day}
                 >
-                  {day && <Text style={[styles.dayText, { color: colors.text }]}>{day}</Text>}
+                  {day && (
+                    <View style={styles.dayContent}>
+                      <Text style={[styles.dayText, { color: colors.text }]}>{day}</Text>
+                      {(() => {
+                        const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        const dayTrades = tradesByDate[dateKey] || [];
+                        if (dayTrades.length > 0) {
+                          return (
+                            <View style={styles.tradeDot}>
+                              <Text style={styles.tradeDotText}>{dayTrades.length}</Text>
+                            </View>
+                          );
+                        }
+                      })()}
+                    </View>
+                  )}
                 </Pressable>
               </Animated.View>
             );
           })
         )}
+      </View>
+
+      {/* Legend */}
+      <View style={styles.legend}>
+        <Text style={[styles.legendTitle, { color: colors.subtext }]}>Activity:</Text>
+        <View style={styles.legendItems}>
+          <View style={[styles.legendBox, { backgroundColor: colors.neutral }]} />
+          <Text style={[styles.legendLabel, { color: colors.subtext }]}>None</Text>
+          <View style={[styles.legendBox, { backgroundColor: colors.profitStart }]} />
+          <Text style={[styles.legendLabel, { color: colors.subtext }]}>Wins</Text>
+          <View style={[styles.legendBox, { backgroundColor: colors.lossStart }]} />
+          <Text style={[styles.legendLabel, { color: colors.subtext }]}>Losses</Text>
+        </View>
       </View>
     </View>
   );
@@ -249,39 +341,92 @@ export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: 
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
   },
-  title: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
+  monthYear: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 2,
   },
-  calendar: {
-    display: 'flex',
+  subtitle: {
+    fontSize: 12,
+  },
+  navButtons: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    justifyContent: 'flex-start',
+    gap: 8,
+  },
+  navButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  navIcon: {
+    fontSize: 20,
+    color: '#f5f5f5',
+    fontWeight: '700',
+  },
+  todayButton: {
+    paddingHorizontal: 12,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  todayText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0d0d0d',
   },
   tooltip: {
-    position: 'relative',
-    padding: 8,
-    borderRadius: 8,
-    marginBottom: 8,
-    alignSelf: 'flex-start',
-    elevation: 4,
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 212, 212, 0.2)',
   },
-  tooltipText: {
+  tooltipHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  tooltipDate: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  tooltipBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  tooltipPnl: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  tooltipTrades: {
+    fontSize: 12,
+  },
+  calendar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    justifyContent: 'flex-start',
   },
   dayLabel: {
     width: '14.28%',
     textAlign: 'center',
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 8,
+    textTransform: 'uppercase',
   },
   dayCell: {
     width: '100%',
@@ -289,11 +434,55 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: 40,
+    minHeight: 38,
+  },
+  dayContent: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dayText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  tradeDot: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#00d4d4',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tradeDotText: {
+    color: '#0d0d0d',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  legend: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 8,
+  },
+  legendTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  legendItems: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendBox: {
+    width: 14,
+    height: 14,
+    borderRadius: 3,
+  },
+  legendLabel: {
+    fontSize: 11,
+    marginRight: 8,
   },
 });

@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, Dimensions } from "react-native";
-import Svg, { Circle } from "react-native-svg";
+import Svg, { Circle, Text as SvgText } from "react-native-svg";
 import { Trade } from "../types";
 import { calculateWinRate } from "../utils/calculations";
 
@@ -9,16 +9,25 @@ interface WinRatePieChartProps {
 }
 
 export default function WinRatePieChart({ trades }: WinRatePieChartProps) {
-  const size = Dimensions.get("window").width - 64;
-  const radius = size / 2 - 20;
+  const size = 220;
+  const radius = 70;
   const centerX = size / 2;
   const centerY = size / 2;
+  const strokeWidth = 24;
 
   const completedTrades = trades.filter((t) => t.result);
+  
   if (completedTrades.length === 0) {
     return (
       <View style={styles.container}>
-        <Text style={styles.noDataText}>No completed trades</Text>
+        <Text style={styles.title}>Win/Loss Distribution</Text>
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>📊</Text>
+          <Text style={styles.emptyTitle}>No Completed Trades</Text>
+          <Text style={styles.emptyText}>
+            Complete trades to see your win/loss distribution
+          </Text>
+        </View>
       </View>
     );
   }
@@ -34,106 +43,169 @@ export default function WinRatePieChart({ trades }: WinRatePieChartProps) {
   const lossPercentage = (losses / total) * 100;
   const breakEvenPercentage = (breakEven / total) * 100;
 
-  // Calculate pie slices
-  const startAngle = -Math.PI / 2;
-  let currentAngle = startAngle;
+  // Calculate circle segments
+  const circumference = 2 * Math.PI * radius;
+  const winStroke = (winPercentage / 100) * circumference;
+  const lossStroke = (lossPercentage / 100) * circumference;
+  const breakEvenStroke = (breakEvenPercentage / 100) * circumference;
 
-  const slices = [];
-
-  // Win slice (green)
-  const winAngle = (winPercentage / 100) * 2 * Math.PI;
-  const winEndAngle = currentAngle + winAngle;
-  slices.push({
-    color: "#4caf50",
-    percentage: winPercentage,
-    label: "Wins",
-    count: wins,
-    startAngle: currentAngle,
-    endAngle: winEndAngle,
-  });
-  currentAngle = winEndAngle;
-
-  // Loss slice (red)
-  const lossAngle = (lossPercentage / 100) * 2 * Math.PI;
-  const lossEndAngle = currentAngle + lossAngle;
-  slices.push({
-    color: "#f44336",
-    percentage: lossPercentage,
-    label: "Losses",
-    count: losses,
-    startAngle: currentAngle,
-    endAngle: lossEndAngle,
-  });
-  currentAngle = lossEndAngle;
-
-  // Break-even slice (gray)
-  if (breakEven > 0) {
-    const breakEvenAngle = (breakEvenPercentage / 100) * 2 * Math.PI;
-    const breakEvenEndAngle = currentAngle + breakEvenAngle;
-    slices.push({
-      color: "#999",
-      percentage: breakEvenPercentage,
-      label: "Break-even",
-      count: breakEven,
-      startAngle: currentAngle,
-      endAngle: breakEvenEndAngle,
-    });
-  }
-
-  const arcToPath = (
-    centerX: number,
-    centerY: number,
-    radius: number,
-    startAngle: number,
-    endAngle: number
-  ) => {
-    const x1 = centerX + radius * Math.cos(startAngle);
-    const y1 = centerY + radius * Math.sin(startAngle);
-    const x2 = centerX + radius * Math.cos(endAngle);
-    const y2 = centerY + radius * Math.sin(endAngle);
-    const largeArc = endAngle - startAngle > Math.PI ? 1 : 0;
-    return `M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`;
-  };
+  const winOffset = 0;
+  const lossOffset = -winStroke;
+  const breakEvenOffset = -(winStroke + lossStroke);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Win/Loss Distribution</Text>
-      <Svg width={size} height={size}>
-        {slices.map((slice, index) => (
-          <View key={index}>
-            <Circle
-              cx={
-                centerX +
-                radius * Math.cos((slice.startAngle + slice.endAngle) / 2)
-              }
-              cy={
-                centerY +
-                radius * Math.sin((slice.startAngle + slice.endAngle) / 2)
-              }
-              r={radius}
-              fill={slice.color}
-              opacity={0.3}
-            />
-          </View>
-        ))}
-      </Svg>
-
-      <View style={styles.legend}>
-        {slices.map((slice, index) => (
-          <View key={index} style={styles.legendItem}>
-            <View
-              style={[styles.legendColor, { backgroundColor: slice.color }]}
-            />
-            <Text style={styles.legendLabel}>
-              {slice.label}: {slice.count} ({slice.percentage.toFixed(1)}%)
-            </Text>
-          </View>
-        ))}
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Win/Loss Distribution</Text>
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{completedTrades.length} trades</Text>
+        </View>
       </View>
 
-      <Text style={styles.winRateText}>
-        Win Rate: {calculateWinRate(trades).toFixed(1)}%
-      </Text>
+      {/* Donut Chart */}
+      <View style={styles.chartContainer}>
+        <Svg width={size} height={size}>
+          {/* Background circle */}
+          <Circle
+            cx={centerX}
+            cy={centerY}
+            r={radius}
+            stroke="#2a2a2a"
+            strokeWidth={strokeWidth}
+            fill="none"
+          />
+
+          {/* Win segment */}
+          {wins > 0 && (
+            <Circle
+              cx={centerX}
+              cy={centerY}
+              r={radius}
+              stroke="#4caf50"
+              strokeWidth={strokeWidth}
+              fill="none"
+              strokeDasharray={`${winStroke} ${circumference}`}
+              strokeDashoffset={winOffset}
+              rotation="-90"
+              origin={`${centerX}, ${centerY}`}
+              strokeLinecap="round"
+            />
+          )}
+
+          {/* Loss segment */}
+          {losses > 0 && (
+            <Circle
+              cx={centerX}
+              cy={centerY}
+              r={radius}
+              stroke="#f44336"
+              strokeWidth={strokeWidth}
+              fill="none"
+              strokeDasharray={`${lossStroke} ${circumference}`}
+              strokeDashoffset={lossOffset}
+              rotation="-90"
+              origin={`${centerX}, ${centerY}`}
+              strokeLinecap="round"
+            />
+          )}
+
+          {/* Break-even segment */}
+          {breakEven > 0 && (
+            <Circle
+              cx={centerX}
+              cy={centerY}
+              r={radius}
+              stroke="#ffa500"
+              strokeWidth={strokeWidth}
+              fill="none"
+              strokeDasharray={`${breakEvenStroke} ${circumference}`}
+              strokeDashoffset={breakEvenOffset}
+              rotation="-90"
+              origin={`${centerX}, ${centerY}`}
+              strokeLinecap="round"
+            />
+          )}
+
+          {/* Center text */}
+          <SvgText
+            x={centerX}
+            y={centerY - 12}
+            fontSize="28"
+            fontWeight="700"
+            fill="#00d4d4"
+            textAnchor="middle"
+          >
+            {winPercentage.toFixed(0)}%
+          </SvgText>
+          <SvgText
+            x={centerX}
+            y={centerY + 16}
+            fontSize="12"
+            fill="#aaa"
+            textAnchor="middle"
+            fontWeight="600"
+          >
+            Win Rate
+          </SvgText>
+        </Svg>
+      </View>
+
+      {/* Legend */}
+      <View style={styles.legend}>
+        <View style={styles.legendItem}>
+          <View style={styles.legendIcon}>
+            <View style={[styles.legendDot, { backgroundColor: '#4caf50' }]} />
+          </View>
+          <View style={styles.legendInfo}>
+            <Text style={styles.legendLabel}>Wins</Text>
+            <Text style={styles.legendValue}>
+              {wins} trades ({winPercentage.toFixed(1)}%)
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.legendItem}>
+          <View style={styles.legendIcon}>
+            <View style={[styles.legendDot, { backgroundColor: '#f44336' }]} />
+          </View>
+          <View style={styles.legendInfo}>
+            <Text style={styles.legendLabel}>Losses</Text>
+            <Text style={styles.legendValue}>
+              {losses} trades ({lossPercentage.toFixed(1)}%)
+            </Text>
+          </View>
+        </View>
+
+        {breakEven > 0 && (
+          <View style={styles.legendItem}>
+            <View style={styles.legendIcon}>
+              <View style={[styles.legendDot, { backgroundColor: '#ffa500' }]} />
+            </View>
+            <View style={styles.legendInfo}>
+              <Text style={styles.legendLabel}>Break-even</Text>
+              <Text style={styles.legendValue}>
+                {breakEven} trades ({breakEvenPercentage.toFixed(1)}%)
+              </Text>
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* Overall Stats */}
+      <View style={styles.overallStats}>
+        <View style={styles.overallStatItem}>
+          <Text style={styles.overallStatLabel}>Total Trades</Text>
+          <Text style={styles.overallStatValue}>{total}</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.overallStatItem}>
+          <Text style={styles.overallStatLabel}>Win Rate</Text>
+          <Text style={[styles.overallStatValue, { color: '#00d4d4' }]}>
+            {calculateWinRate(trades).toFixed(1)}%
+          </Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -142,49 +214,122 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: "#1a1a1a",
     borderWidth: 1,
-    borderColor: "#00d4d4",
-    borderRadius: 8,
+    borderColor: "rgba(0, 212, 212, 0.15)",
+    borderRadius: 12,
     padding: 16,
-    marginBottom: 24,
+    marginBottom: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   title: {
     color: "#f5f5f5",
     fontSize: 16,
     fontWeight: "700",
+  },
+  badge: {
+    backgroundColor: 'rgba(0, 212, 212, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  badgeText: {
+    color: '#00d4d4',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  emptyState: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyIcon: {
+    fontSize: 48,
     marginBottom: 12,
   },
-  noDataText: {
+  emptyTitle: {
+    color: '#f5f5f5',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  emptyText: {
     color: "#888",
+    fontSize: 13,
     textAlign: "center",
-    paddingVertical: 30,
+  },
+  chartContainer: {
+    alignItems: 'center',
+    marginVertical: 16,
   },
   legend: {
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: 16,
+    paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: "#333",
+    borderTopColor: 'rgba(255,255,255,0.05)',
+    gap: 12,
   },
   legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  legendColor: {
+  legendIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#2a2a2a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  legendDot: {
     width: 12,
     height: 12,
-    borderRadius: 2,
-    marginRight: 8,
+    borderRadius: 6,
+  },
+  legendInfo: {
+    flex: 1,
   },
   legendLabel: {
-    color: "#f5f5f5",
-    fontSize: 13,
-    fontWeight: "500",
+    color: '#aaa',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 2,
   },
-  winRateText: {
-    color: "#00d4d4",
+  legendValue: {
+    color: "#f5f5f5",
     fontSize: 14,
-    fontWeight: "700",
-    marginTop: 12,
-    textAlign: "center",
+    fontWeight: "600",
+  },
+  overallStats: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0, 212, 212, 0.05)',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 16,
+  },
+  overallStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  overallStatLabel: {
+    color: '#aaa',
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  overallStatValue: {
+    color: '#f5f5f5',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginHorizontal: 8,
   },
 });
