@@ -15,4 +15,4 @@ npm install --legacy-peer-deps
 
 # Try to run the web build
 Write-Host "Starting web build..."
-npm run web:dev 2>&1 | Tee-Object -FilePath "web-build-result.log"
+npm run web 2>&1 | Tee-Object -FilePath "web-build-result.log"

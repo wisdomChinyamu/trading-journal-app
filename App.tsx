@@ -3,7 +3,7 @@ import React, { useEffect } from "react";
 import { Platform } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { AppProvider } from "./src/context/AppContext";
-import { TabNavigator } from "./src/navigation/TabNavigator";
+import AuthNavigator from "./src/screens/AuthNavigator";
 import ThemeProvider from "./src/components/ThemeProvider";
 
 // Conditional imports for native-only modules
@@ -48,7 +48,7 @@ export default function App() {
         <ThemeProvider initial="dark">
           <NavigationContainer>
             {StatusBar && <StatusBar />}
-            <TabNavigator />
+            <AuthNavigator />
           </NavigationContainer>
         </ThemeProvider>
       </AppProvider>

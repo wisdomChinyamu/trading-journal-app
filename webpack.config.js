@@ -5,6 +5,15 @@ const path = require("path");
 module.exports = async function (env, argv) {
   const config = await createExpoWebpackConfigAsync(env, argv);
 
+  // Ensure proper MIME types for JavaScript files
+  if (config.devServer) {
+    config.devServer.mimeTypes = {
+      'application/javascript': ['js', 'mjs', 'jsx'],
+      'text/javascript': ['ts', 'tsx'],
+      'application/json': ['json']
+    };
+  }
+
   // Provide fallbacks for Node core modules used by some libs (crypto, stream, buffer)
   config.resolve = config.resolve || {};
   config.resolve.fallback = Object.assign({}, config.resolve.fallback, {

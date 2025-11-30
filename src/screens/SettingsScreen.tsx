@@ -21,7 +21,7 @@ import {
 } from "../services/firebaseService";
 
 export default function SettingsScreen() {
-  const { colors, mode, setMode } = useTheme();
+  const { colors, mode, toggleMode } = useTheme();
   const userId = "current-user"; // Replace with actual user ID from context/auth
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(
@@ -30,10 +30,6 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(false);
   const [newStrategyName, setNewStrategyName] = useState("");
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
-
-  const toggleMode = () => {
-    setMode(mode === 'dark' ? 'light' : 'dark');
-  };
 
   useEffect(() => {
     setLoading(true);
