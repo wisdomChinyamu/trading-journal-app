@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { View, ActivityIndicator, Text, StyleSheet, Animated } from "react-native";
-import { auth } from "../services/firebaseService";
-import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "../config/firebase";
+import { onAuthStateChange } from "../services/firebaseService";
 import { TabNavigator } from "../navigation/TabNavigator";
 import LoginScreen from "./LoginScreen";
 import SignUpScreen from "./SignUpScreen";
+import { useAppContext } from "../hooks/useAppContext";
 
 export default function AuthNavigator() {
+  const { dispatch } = useAppContext();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showSignUp, setShowSignUp] = useState(false);
@@ -30,9 +32,28 @@ export default function AuthNavigator() {
     ]).start();
 
     // Check if user is already authenticated
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChange((currentUser) => {
       setUser(currentUser);
       setLoading(false);
+      
+      // Set user in AppContext
+      if (currentUser) {
+        dispatch({
+          type: 'SET_USER',
+          payload: {
+            uid: currentUser.uid,
+            email: currentUser.email,
+            username: currentUser.email?.split('@')[0] || 'Trader',
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            createdAt: new Date(),
+          }
+        });
+      } else {
+        dispatch({
+          type: 'SET_USER',
+          payload: null
+        });
+      }
     });
 
     return unsubscribe;

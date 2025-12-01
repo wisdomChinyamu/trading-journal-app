@@ -46,6 +46,7 @@ export default function LoginScreen({ navigation }: any) {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       Alert.alert("Success", "Welcome back to Caprianne Trdz!");
+      navigation.replace("Dashboard"); // Navigate to dashboard after login
     } catch (error: any) {
       let errorMessage = "An error occurred during login";
       

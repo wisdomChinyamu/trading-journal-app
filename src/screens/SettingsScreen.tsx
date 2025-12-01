@@ -21,8 +21,9 @@ import {
 } from "../services/firebaseService";
 
 export default function SettingsScreen() {
-  const { colors, mode, toggleMode } = useTheme();
-  const userId = "current-user"; // Replace with actual user ID from context/auth
+  const { colors, mode, setMode } = useTheme();
+  const { state: appContextState, dispatch } = useAppContext();
+  const userId = appContextState.user?.uid || "current-user"; // Replace with actual user ID from context/auth
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(
     null
@@ -31,12 +32,39 @@ export default function SettingsScreen() {
   const [newStrategyName, setNewStrategyName] = useState("");
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
+  const toggleMode = () => {
+    setMode(mode === 'dark' ? 'light' : 'dark');
+  };
+
   useEffect(() => {
-    setLoading(true);
-    getUserStrategies(userId)
-      .then(setStrategies)
-      .finally(() => setLoading(false));
-  }, []);
+    if (userId && userId !== "current-user") {
+      setLoading(true);
+      getUserStrategies(userId)
+        .then(setStrategies)
+        .finally(() => setLoading(false));
+    }
+  }, [userId]);
+
+  const handleAddItem = (item: Omit<ChecklistItem, "id" | "createdAt">) => {
+    dispatch({
+      type: "ADD_CHECKLIST_ITEM",
+      payload: { ...item, id: `item-${Date.now()}`, createdAt: new Date() },
+    });
+  };
+
+  const handleUpdateItem = (item: ChecklistItem) => {
+    dispatch({
+      type: "UPDATE_CHECKLIST_ITEM",
+      payload: item,
+    });
+  };
+
+  const handleDeleteItem = (itemId: string) => {
+    dispatch({
+      type: "DELETE_CHECKLIST_ITEM",
+      payload: itemId,
+    });
+  };
 
   const handleCreateStrategy = async () => {
     if (!newStrategyName.trim()) return;
@@ -65,29 +93,6 @@ export default function SettingsScreen() {
     setStrategies(updated);
     setSelectedStrategyId(null);
     setLoading(false);
-  };
-
-  const { state, dispatch } = useAppContext();
-
-  const handleAddItem = (item: Omit<ChecklistItem, "id" | "createdAt">) => {
-    dispatch({
-      type: "ADD_CHECKLIST_ITEM",
-      payload: { ...item, id: `item-${Date.now()}`, createdAt: new Date() },
-    });
-  };
-
-  const handleUpdateItem = (item: ChecklistItem) => {
-    dispatch({
-      type: "UPDATE_CHECKLIST_ITEM",
-      payload: item,
-    });
-  };
-
-  const handleDeleteItem = (itemId: string) => {
-    dispatch({
-      type: "DELETE_CHECKLIST_ITEM",
-      payload: itemId,
-    });
   };
 
   return (

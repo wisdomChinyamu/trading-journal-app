@@ -19,7 +19,8 @@ import {
   assignGrade,
 } from "../utils/calculations";
 import { Trade, TradeDirection, TradeSession, Strategy } from "../types";
-import { getUserStrategies } from "../services/firebaseService";
+import { getUserStrategies, addTrade } from "../services/firebaseService";
+import { useAppContext } from "../hooks/useAppContext";
 
 interface AddTradeScreenProps {
   navigation: any;
@@ -50,7 +51,7 @@ export default function AddTradeScreen({
   navigation,
   route,
 }: AddTradeScreenProps) {
-  const userId = "current-user";
+  const { state } = useAppContext();
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(
     null
@@ -58,7 +59,12 @@ export default function AddTradeScreen({
   const [checklistItems, setChecklistItems] = useState<any[]>([]);
   
   useEffect(() => {
-    getUserStrategies(userId).then(setStrategies);
+    // Get user ID from context
+    const userId = state.user?.uid;
+    
+    if (userId) {
+      getUserStrategies(userId).then(setStrategies);
+    }
   }, []);
 
   useEffect(() => {
@@ -165,8 +171,23 @@ export default function AddTradeScreen({
       checklist: checkedItems,
     };
 
-    navigation.goBack();
-    Alert.alert("Success", `Trade recorded: ${pair} ${direction}`);
+    try {
+      // Get user ID from context
+      const userId = state.user?.uid;
+      
+      if (!userId) {
+        throw new Error("User not authenticated");
+      }
+
+      // Save trade to Firebase
+      await addTrade(userId, newTrade as Omit<Trade, "id">);
+      
+      navigation.goBack();
+      Alert.alert("Success", `Trade recorded: ${pair} ${direction}`);
+    } catch (error) {
+      console.error("Error saving trade:", error);
+      Alert.alert("Error", "Failed to save trade. Please try again.");
+    }
   };
 
   const getGradeColor = (score: number) => {

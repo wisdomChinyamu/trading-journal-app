@@ -52,6 +52,7 @@ export default function SignUpScreen({ navigation }: any) {
     try {
       await createUserWithEmailAndPassword(auth, email, password);
       Alert.alert("Success", "Account created successfully! Welcome to Caprianne Trdz.");
+      navigation.replace("Dashboard"); // Navigate to dashboard after signup
     } catch (error: any) {
       let errorMessage = "An error occurred during sign up";
       
