@@ -12,7 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "../services/firebaseService";
+import { auth } from "../config/firebase";
 import { useTheme } from "../components/ThemeProvider";
 
 export default function ResetPasswordScreen({ navigation }: any) {

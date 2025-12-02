@@ -76,7 +76,12 @@ export default function AddTradeForm({ onSubmit, onClose }: AddTradeFormProps) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
           {/* Header */}
           <View style={styles.header}>
@@ -88,22 +93,22 @@ export default function AddTradeForm({ onSubmit, onClose }: AddTradeFormProps) {
               <Text style={styles.closeIcon}>×</Text>
             </TouchableOpacity>
           </View>
-
+          
           {/* Live R:R Display */}
-          {(entryPrice && stopLoss && takeProfit) && (
+          {(entryPrice && stopLoss && takeProfit) ? (
             <View style={[styles.rrHero, { borderColor: rr >= 2 ? colors.profitEnd : colors.highlight }]}>
               <Text style={[styles.rrLabel, { color: colors.subtext }]}>Risk:Reward</Text>
               <Text style={[styles.rrValue, { color: rr >= 2 ? colors.profitEnd : colors.highlight }]}>
-                1:{rr.toFixed(2)}
+                {`1:${rr.toFixed(2)}`}
               </Text>
-              <View style={[styles.rrBadge, { backgroundColor: rr >= 2 ? '#4caf5020' : '#00d4d420' }]}>
+              <View style={[styles.rrBadge, { backgroundColor: rr >= 3 ? '#4caf5020' : rr >= 2 ? '#4caf5020' : '#00d4d420' }]}>
                 <Text style={[styles.rrBadgeText, { color: rr >= 2 ? colors.profitEnd : colors.highlight }]}>
                   {rr >= 3 ? '🔥 Excellent' : rr >= 2 ? '✓ Good' : '⚠️ Fair'}
                 </Text>
               </View>
             </View>
-          )}
-
+          ) : null}
+          
           {/* Pair Selection */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Currency Pair</Text>
@@ -360,6 +365,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   card: {
     margin: 16,
