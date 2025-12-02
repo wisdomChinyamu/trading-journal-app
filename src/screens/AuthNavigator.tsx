@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, ActivityIndicator, Text, StyleSheet, Animated } from "react-native";
 import { auth } from "../config/firebase";
-import { onAuthStateChange } from "../services/firebaseService";
+import { observeAuthState } from "../services/firebaseService";
 import { TabNavigator } from "../navigation/TabNavigator";
 import LoginScreen from "./LoginScreen";
 import SignUpScreen from "./SignUpScreen";
@@ -32,7 +32,7 @@ export default function AuthNavigator() {
     ]).start();
 
     // Check if user is already authenticated
-    const unsubscribe = onAuthStateChange((currentUser) => {
+    const unsubscribe = observeAuthState((currentUser) => {
       setUser(currentUser);
       setLoading(false);
       

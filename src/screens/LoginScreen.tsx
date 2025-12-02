@@ -12,7 +12,7 @@ import {
   ScrollView,
 } from "react-native";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../services/firebaseService";
+import { auth } from "../config/firebase";
 import { useTheme } from "../components/ThemeProvider";
 
 export default function LoginScreen({ navigation }: any) {

@@ -110,7 +110,7 @@ export async function resetPassword(email: string) {
   }
 }
 
-export function onAuthStateChange(callback: (user: any) => void) {
+export function observeAuthState(callback: (user: any) => void) {
   // Check if Firebase Auth is properly initialized
   if (!isFirebaseAuthInitialized()) {
     console.warn('Firebase Auth not properly initialized. Skipping auth state change listener.');

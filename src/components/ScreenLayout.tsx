@@ -27,9 +27,11 @@ export default function ScreenLayout({
           styles.gradientOverlay,
           {
             backgroundColor: `${colors.highlight}05`,
+            pointerEvents: 'none' as const,
           },
         ]}
-        pointerEvents="none"
+        // pointerEvents="none"
+
       />
     ) : null;
 
