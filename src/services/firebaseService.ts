@@ -10,6 +10,8 @@ import {
   query,
   where,
   Timestamp,
+  arrayUnion,
+  increment,
 } from "firebase/firestore";
 import {
   createUserWithEmailAndPassword,
@@ -26,6 +28,8 @@ import {
   PsychologyLog,
   Trade,
   ChecklistTemplate,
+  Routine, // Add Routine import
+  RoutineItem // Add RoutineItem import
 } from "../types";
 
 // Helper function to check if Firebase is properly initialized
@@ -260,23 +264,24 @@ export async function deleteStrategy(strategyId: string) {
 
 export async function getUserStrategies(userId: string): Promise<Strategy[]> {
   try {
+    if (!isFirebaseInitialized()) {
+      console.warn('Firebase not properly initialized. Returning empty strategies.');
+      return [];
+    }
+    
     const q = query(
       collection(db, "strategies"),
       where("userId", "==", userId)
     );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(
-      (doc) =>
-        ({
-          ...doc.data(),
-          id: doc.id,
-          createdAt: doc.data().createdAt?.toDate() || new Date(),
-          updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-        } as Strategy)
-    );
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Strategy));
   } catch (error) {
-    console.error("Error fetching strategies:", error);
-    throw error;
+    console.error("Error fetching user strategies:", error);
+    return [];
   }
 }
 
@@ -541,6 +546,162 @@ export async function getUserTrades(userId: string): Promise<Trade[]> {
     });
   } catch (error) {
     console.error("Error fetching trades:", error);
+    throw error;
+  }
+}
+
+// ==================== ROUTINES ====================
+
+export async function createRoutine(
+  userId: string,
+  name: string,
+  schedule: 'weekday' | 'weekend' | 'both' = 'both'
+) {
+  try {
+    const docRef = await addDoc(collection(db, "routines"), {
+      userId,
+      name,
+      items: [],
+      schedule,
+      streak: 0,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error("Error creating routine:", error);
+    throw error;
+  }
+}
+
+export async function getRoutines(userId: string): Promise<Routine[]> {
+  try {
+    const q = query(collection(db, "routines"), where("userId", "==", userId));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        ...data,
+        id: doc.id,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date(),
+        lastCompleted: data.lastCompleted?.toDate() || undefined,
+      } as Routine;
+    });
+  } catch (error) {
+    console.error("Error fetching routines:", error);
+    throw error;
+  }
+}
+
+export async function updateRoutine(
+  routineId: string,
+  updates: Partial<Routine>
+) {
+  try {
+    await updateDoc(doc(db, "routines", routineId), {
+      ...updates,
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error) {
+    console.error("Error updating routine:", error);
+    throw error;
+  }
+}
+
+export async function deleteRoutine(routineId: string) {
+  try {
+    await deleteDoc(doc(db, "routines", routineId));
+  } catch (error) {
+    console.error("Error deleting routine:", error);
+    throw error;
+  }
+}
+
+export async function addRoutineItem(
+  routineId: string,
+  item: Omit<RoutineItem, 'id'>
+) {
+  try {
+    const newItem = {
+      ...item,
+      id: Date.now().toString(),
+    };
+    
+    await updateDoc(doc(db, "routines", routineId), {
+      items: arrayUnion(newItem),
+      updatedAt: Timestamp.now(),
+    });
+    
+    return newItem.id;
+  } catch (error) {
+    console.error("Error adding routine item:", error);
+    throw error;
+  }
+}
+
+export async function updateRoutineItem(
+  routineId: string,
+  itemId: string,
+  updates: Partial<RoutineItem>
+) {
+  try {
+    const routineRef = doc(db, "routines", routineId);
+    const routineDoc = await getDoc(routineRef);
+    
+    if (!routineDoc.exists()) {
+      throw new Error("Routine not found");
+    }
+    
+    const routine = routineDoc.data();
+    const updatedItems = routine.items.map((item: any) => 
+      item.id === itemId ? { ...item, ...updates } : item
+    );
+    
+    await updateDoc(routineRef, {
+      items: updatedItems,
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error) {
+    console.error("Error updating routine item:", error);
+    throw error;
+  }
+}
+
+export async function deleteRoutineItem(routineId: string, itemId: string) {
+  try {
+    const routineRef = doc(db, "routines", routineId);
+    const routineDoc = await getDoc(routineRef);
+    
+    if (!routineDoc.exists()) {
+      throw new Error("Routine not found");
+    }
+    
+    const routine = routineDoc.data();
+    const updatedItems = routine.items.filter((item: any) => item.id !== itemId);
+    
+    await updateDoc(routineRef, {
+      items: updatedItems,
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error) {
+    console.error("Error deleting routine item:", error);
+    throw error;
+  }
+}
+
+export async function completeRoutine(routineId: string) {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    await updateDoc(doc(db, "routines", routineId), {
+      streak: increment(1),
+      lastCompleted: Timestamp.fromDate(today),
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error) {
+    console.error("Error completing routine:", error);
     throw error;
   }
 }

@@ -1,73 +1,272 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
   StyleSheet, 
   ScrollView, 
   TouchableOpacity,
-  Platform 
+  Alert,
+  Platform,
+  TextInput
 } from 'react-native';
 import { useAppContext } from '../hooks/useAppContext';
 import { useTheme } from '../components/ThemeProvider';
-import EditableChecklistTable from '../components/EditableChecklistTable';
-import { ChecklistItem, ChecklistCategory } from '../types';
-
-// Tab configuration with icons and descriptions
-const tabConfig: Record<ChecklistCategory, { 
-  icon: string; 
-  color: string;
-  description: string;
-}> = {
-  Critical: {
-    icon: '🔴',
-    color: '#ef5350',
-    description: 'Must-check items before execution',
-  },
-  Important: {
-    icon: '🟡',
-    color: '#ffa726',
-    description: 'High-priority validation points',
-  },
-  Optional: {
-    icon: '🔵',
-    color: '#42a5f5',
-    description: 'Additional confirmation factors',
-  },
-};
+import { 
+  createRoutine, 
+  updateRoutine, 
+  deleteRoutine, 
+  addRoutineItem, 
+  updateRoutineItem, 
+  deleteRoutineItem, 
+  completeRoutine,
+  getRoutines
+} from '../services/firebaseService';
+import { Routine, RoutineItem } from '../types';
 
 export default function RoutineScreen() {
   const { colors } = useTheme();
   const { state, dispatch } = useAppContext();
-  const [activeTab, setActiveTab] = useState<ChecklistCategory>('Critical');
+  const [activeRoutine, setActiveRoutine] = useState<Routine | null>(null);
+  const [newRoutineName, setNewRoutineName] = useState('');
+  const [showNewRoutineForm, setShowNewRoutineForm] = useState(false);
+  const [newItemText, setNewItemText] = useState('');
+  const [selectedSchedule, setSelectedSchedule] = useState<'weekday' | 'weekend' | 'both'>('both');
 
-  const handleAddItem = (item: Omit<ChecklistItem, 'id' | 'createdAt'>) => {
-    if (state.checklistTemplate) {
-      // In real app, this would call Firebase service
-      console.log('Add item:', item);
-    }
-  };
-
-  const handleUpdateItem = (item: ChecklistItem) => {
-    if (state.checklistTemplate) {
-      dispatch({
-        type: 'UPDATE_CHECKLIST_ITEM',
-        payload: item,
-      });
-    }
-  };
-
-  const handleDeleteItem = (itemId: string) => {
-    dispatch({
-      type: 'DELETE_CHECKLIST_ITEM',
-      payload: itemId,
+  // Filter routines based on current day (weekday/weekend)
+  const getFilteredRoutines = () => {
+    const today = new Date();
+    const isWeekend = today.getDay() === 0 || today.getDay() === 6; // Sunday=0, Saturday=6
+    
+    return state.routines.filter(routine => {
+      if (routine.schedule === 'both') return true;
+      if (routine.schedule === 'weekday' && !isWeekend) return true;
+      if (routine.schedule === 'weekend' && isWeekend) return true;
+      return false;
     });
   };
 
-  const filteredItems = state.checklistTemplate?.items.filter(
-    (item) => item.category === activeTab
-  ) || [];
+  // Set the first routine as active when routines load
+  useEffect(() => {
+    if (state.routines.length > 0 && !activeRoutine) {
+      setActiveRoutine(state.routines[0]);
+    }
+  }, [state.routines]);
 
-  const activeConfig = tabConfig[activeTab];
+  // Reset completed items at midnight
+  useEffect(() => {
+    const checkAndResetDailyItems = async () => {
+      if (!activeRoutine) return;
+      
+      // Check if we need to reset items (if last completed was yesterday or earlier)
+      const now = new Date();
+      const lastCompleted = activeRoutine.lastCompleted ? new Date(activeRoutine.lastCompleted) : null;
+      
+      if (!lastCompleted || 
+          lastCompleted.getDate() !== now.getDate() || 
+          lastCompleted.getMonth() !== now.getMonth() || 
+          lastCompleted.getFullYear() !== now.getFullYear()) {
+        
+        // Reset all completed items
+        try {
+          for (const item of activeRoutine.items) {
+            if (item.completed) {
+              await updateRoutineItem(activeRoutine.id, item.id, {
+                completed: false,
+                completedAt: undefined,
+              });
+            }
+          }
+          
+          // Refresh routines
+          if (state.user?.uid) {
+            const routines = await getRoutines(state.user.uid);
+            dispatch({ type: 'SET_ROUTINES', payload: routines });
+            
+            // Update active routine
+            const updatedRoutine = routines.find(r => r.id === activeRoutine.id);
+            if (updatedRoutine) {
+              setActiveRoutine(updatedRoutine);
+            }
+          }
+        } catch (error) {
+          console.error('Error resetting daily routine items:', error);
+        }
+      }
+    };
+
+    // Check on component mount and when active routine changes
+    checkAndResetDailyItems();
+
+    // Set up interval to check every hour
+    const interval = setInterval(checkAndResetDailyItems, 60 * 60 * 1000);
+    
+    return () => clearInterval(interval);
+  }, [activeRoutine, state.user?.uid, dispatch]);
+
+  const handleCreateRoutine = async () => {
+    if (!newRoutineName.trim()) {
+      Alert.alert('Error', 'Please enter a routine name');
+      return;
+    }
+
+    try {
+      if (!state.user?.uid) {
+        throw new Error('User not authenticated');
+      }
+
+      const routineId = await createRoutine(state.user.uid, newRoutineName, selectedSchedule);
+      
+      // Refresh routines
+      const routines = await getRoutines(state.user.uid);
+      dispatch({ type: 'SET_ROUTINES', payload: routines });
+      
+      // Set as active routine
+      const newRoutine = routines.find(r => r.id === routineId);
+      if (newRoutine) {
+        setActiveRoutine(newRoutine);
+      }
+      
+      // Reset form
+      setNewRoutineName('');
+      setShowNewRoutineForm(false);
+      Alert.alert('Success', 'Routine created successfully');
+    } catch (error) {
+      console.error('Error creating routine:', error);
+      Alert.alert('Error', 'Failed to create routine');
+    }
+  };
+
+  const handleDeleteRoutine = async (routineId: string) => {
+    Alert.alert(
+      'Delete Routine',
+      'Are you sure you want to delete this routine? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteRoutine(routineId);
+              
+              // Refresh routines
+              if (state.user?.uid) {
+                const routines = await getRoutines(state.user.uid);
+                dispatch({ type: 'SET_ROUTINES', payload: routines });
+                
+                // If we deleted the active routine, set a new one
+                if (activeRoutine?.id === routineId) {
+                  setActiveRoutine(routines.length > 0 ? routines[0] : null);
+                }
+              }
+              
+              Alert.alert('Success', 'Routine deleted successfully');
+            } catch (error) {
+              console.error('Error deleting routine:', error);
+              Alert.alert('Error', 'Failed to delete routine');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleAddItem = async () => {
+    if (!newItemText.trim()) {
+      Alert.alert('Error', 'Please enter an item');
+      return;
+    }
+
+    if (!activeRoutine) {
+      Alert.alert('Error', 'No active routine selected');
+      return;
+    }
+
+    try {
+      await addRoutineItem(activeRoutine.id, {
+        label: newItemText,
+        category: 'Optional',
+        completed: false,
+      });
+      
+      // Refresh routines
+      if (state.user?.uid) {
+        const routines = await getRoutines(state.user.uid);
+        dispatch({ type: 'SET_ROUTINES', payload: routines });
+        
+        // Update active routine
+        const updatedRoutine = routines.find(r => r.id === activeRoutine.id);
+        if (updatedRoutine) {
+          setActiveRoutine(updatedRoutine);
+        }
+      }
+      
+      // Reset form
+      setNewItemText('');
+    } catch (error) {
+      console.error('Error adding routine item:', error);
+      Alert.alert('Error', 'Failed to add item');
+    }
+  };
+
+  const handleToggleItem = async (itemId: string) => {
+    if (!activeRoutine) return;
+
+    try {
+      const item = activeRoutine.items.find(i => i.id === itemId);
+      if (!item) return;
+
+      await updateRoutineItem(activeRoutine.id, itemId, {
+        completed: !item.completed,
+        completedAt: !item.completed ? new Date() : undefined,
+      });
+      
+      // Refresh routines
+      if (state.user?.uid) {
+        const routines = await getRoutines(state.user.uid);
+        dispatch({ type: 'SET_ROUTINES', payload: routines });
+        
+        // Update active routine
+        const updatedRoutine = routines.find(r => r.id === activeRoutine.id);
+        if (updatedRoutine) {
+          setActiveRoutine(updatedRoutine);
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling routine item:', error);
+      Alert.alert('Error', 'Failed to update item');
+    }
+  };
+
+  const handleCompleteRoutine = async () => {
+    if (!activeRoutine) return;
+
+    try {
+      await completeRoutine(activeRoutine.id);
+      
+      // Refresh routines
+      if (state.user?.uid) {
+        const routines = await getRoutines(state.user.uid);
+        dispatch({ type: 'SET_ROUTINES', payload: routines });
+        
+        // Update active routine
+        const updatedRoutine = routines.find(r => r.id === activeRoutine.id);
+        if (updatedRoutine) {
+          setActiveRoutine(updatedRoutine);
+        }
+      }
+      
+      Alert.alert('Success', 'Routine completed! Streak increased.');
+    } catch (error) {
+      console.error('Error completing routine:', error);
+      Alert.alert('Error', 'Failed to complete routine');
+    }
+  };
+
+  const filteredRoutines = getFilteredRoutines();
+  const completedItems = activeRoutine?.items.filter(item => item.completed).length || 0;
+  const totalItems = activeRoutine?.items.length || 0;
+  const completionPercentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -75,15 +274,10 @@ export default function RoutineScreen() {
       <View style={styles.header}>
         <View>
           <Text style={[styles.title, { color: colors.text }]}>
-            Trading Routine
+            Trading Routines
           </Text>
           <Text style={[styles.subtitle, { color: colors.subtext }]}>
-            Systematic execution checklist
-          </Text>
-        </View>
-        <View style={[styles.headerBadge, { backgroundColor: `${colors.highlight}20` }]}>
-          <Text style={[styles.headerBadgeText, { color: colors.highlight }]}>
-            ✅
+            Build discipline with daily checklists
           </Text>
         </View>
       </View>
@@ -93,229 +287,251 @@ export default function RoutineScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Stats Card */}
-        {state.checklistTemplate && (
-          <View style={[styles.statsCard, { backgroundColor: colors.card }]}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.highlight }]}>
-                {state.checklistTemplate.items.length}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.subtext }]}>
-                Total Items
-              </Text>
+        {/* Streak Banner */}
+        {activeRoutine && (
+          <View style={[styles.streakBanner, { backgroundColor: colors.surface }]}>
+            <View style={styles.streakContent}>
+              <Text style={[styles.streakEmoji]}>🔥</Text>
+              <View>
+                <Text style={[styles.streakLabel, { color: colors.subtext }]}>Current Streak</Text>
+                <Text style={[styles.streakValue, { color: colors.highlight }]}>{activeRoutine.streak} days</Text>
+              </View>
             </View>
-            <View style={[styles.statDivider, { backgroundColor: colors.neutral }]} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: tabConfig.Critical.color }]}>
-                {state.checklistTemplate.items.filter(i => i.category === 'Critical').length}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.subtext }]}>
-                Critical
-              </Text>
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: colors.neutral }]} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: tabConfig.Important.color }]}>
-                {state.checklistTemplate.items.filter(i => i.category === 'Important').length}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.subtext }]}>
-                Important
-              </Text>
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: colors.neutral }]} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: tabConfig.Optional.color }]}>
-                {state.checklistTemplate.items.filter(i => i.category === 'Optional').length}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.subtext }]}>
-                Optional
-              </Text>
-            </View>
+            <TouchableOpacity 
+              style={[styles.completeButton, { backgroundColor: colors.highlight }]}
+              onPress={handleCompleteRoutine}
+            >
+              <Text style={styles.completeButtonText}>Complete Routine</Text>
+            </TouchableOpacity>
           </View>
         )}
 
-        {/* Tab Navigation */}
-        <View style={styles.tabContainer}>
-          {(['Critical', 'Important', 'Optional'] as const).map((tab) => {
-            const isActive = activeTab === tab;
-            const config = tabConfig[tab];
-            const itemCount = state.checklistTemplate?.items.filter(
-              i => i.category === tab
-            ).length || 0;
-
-            return (
+        {/* Routine Selector */}
+        <View style={styles.routineSelector}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Routines</Text>
+          
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.routineTabs}>
+            {filteredRoutines.map((routine) => (
               <TouchableOpacity
-                key={tab}
+                key={routine.id}
                 style={[
-                  styles.tab,
-                  {
-                    backgroundColor: isActive 
-                      ? `${config.color}20`
-                      : colors.surface,
-                    borderColor: isActive ? config.color : `${colors.text}20`,
-                    borderWidth: 2,
-                  },
+                  styles.routineTab,
+                  activeRoutine?.id === routine.id && styles.activeRoutineTab,
+                  { 
+                    backgroundColor: activeRoutine?.id === routine.id ? colors.highlight : colors.surface,
+                    borderColor: activeRoutine?.id === routine.id ? colors.highlight : colors.neutral,
+                  }
                 ]}
-                onPress={() => setActiveTab(tab)}
-                activeOpacity={0.7}
+                onPress={() => setActiveRoutine(routine)}
               >
-                <View style={styles.tabContent}>
-                  <Text style={styles.tabIcon}>{config.icon}</Text>
-                  <Text
+                <Text 
+                  style={[
+                    styles.routineTabText,
+                    { color: activeRoutine?.id === routine.id ? '#000' : colors.text }
+                  ]}
+                >
+                  {routine.name}
+                </Text>
+                <Text 
+                  style={[
+                    styles.routineStreak,
+                    { color: activeRoutine?.id === routine.id ? '#000' : colors.subtext }
+                  ]}
+                >
+                  🔥 {routine.streak}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            
+            <TouchableOpacity
+              style={[styles.newRoutineButton, { backgroundColor: colors.surface }]}
+              onPress={() => setShowNewRoutineForm(true)}
+            >
+              <Text style={[styles.newRoutineText, { color: colors.text }]}>+ New Routine</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+
+        {/* New Routine Form */}
+        {showNewRoutineForm && (
+          <View style={[styles.newRoutineForm, { backgroundColor: colors.card }]}>
+            <Text style={[styles.formTitle, { color: colors.text }]}>Create New Routine</Text>
+            
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: colors.text }]}>Routine Name</Text>
+              <View style={[styles.inputContainer, { backgroundColor: colors.surface }]}>
+                <TextInput
+                  style={[styles.input, { color: colors.text }]}
+                  placeholder="Morning Routine, Evening Review..."
+                  placeholderTextColor={colors.subtext}
+                  value={newRoutineName}
+                  onChangeText={setNewRoutineName}
+                />
+              </View>
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: colors.text }]}>Schedule</Text>
+              <View style={styles.scheduleOptions}>
+                {(['weekday', 'weekend', 'both'] as const).map((schedule) => (
+                  <TouchableOpacity
+                    key={schedule}
                     style={[
-                      styles.tabText,
-                      {
-                        color: isActive ? config.color : colors.text,
-                      },
+                      styles.scheduleOption,
+                      selectedSchedule === schedule && styles.selectedScheduleOption,
+                      { 
+                        backgroundColor: selectedSchedule === schedule ? colors.highlight : colors.surface,
+                        borderColor: selectedSchedule === schedule ? colors.highlight : colors.neutral,
+                      }
                     ]}
+                    onPress={() => setSelectedSchedule(schedule)}
                   >
-                    {tab}
-                  </Text>
-                  {itemCount > 0 && (
-                    <View
+                    <Text 
                       style={[
-                        styles.countBadge,
-                        {
-                          backgroundColor: isActive 
-                            ? config.color 
-                            : colors.neutral,
-                        },
+                        styles.scheduleText,
+                        { color: selectedSchedule === schedule ? '#000' : colors.text }
                       ]}
                     >
-                      <Text
-                        style={[
-                          styles.countText,
-                          { color: isActive ? '#fff' : colors.text },
-                        ]}
-                      >
-                        {itemCount}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Active Tab Description */}
-        <View
-          style={[
-            styles.descriptionCard,
-            {
-              backgroundColor: `${activeConfig.color}10`,
-              borderLeftColor: activeConfig.color,
-              borderLeftWidth: 4,
-            },
-          ]}
-        >
-          <Text style={[styles.descriptionText, { color: colors.text }]}>
-            {activeConfig.icon} {activeConfig.description}
-          </Text>
-        </View>
-
-        {/* Checklist Content */}
-        {state.checklistTemplate ? (
-          filteredItems.length > 0 ? (
-            <View style={[styles.checklistContainer, { backgroundColor: colors.card }]}>
-              <View style={styles.checklistHeader}>
-                <Text style={[styles.checklistTitle, { color: colors.text }]}>
-                  {activeTab} Checklist
-                </Text>
-                <View style={[styles.itemCountBadge, { backgroundColor: `${activeConfig.color}20` }]}>
-                  <Text style={[styles.itemCountText, { color: activeConfig.color }]}>
-                    {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'}
-                  </Text>
-                </View>
+                      {schedule.charAt(0).toUpperCase() + schedule.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-              <EditableChecklistTable
-                items={filteredItems}
-                onAddItem={handleAddItem}
-                onUpdateItem={handleUpdateItem}
-                onDeleteItem={handleDeleteItem}
-              />
             </View>
-          ) : (
-            <View style={[styles.emptyState, { backgroundColor: colors.card }]}>
-              <Text style={[styles.emptyIcon, { color: colors.subtext }]}>
-                {activeConfig.icon}
-              </Text>
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                No {activeTab} Items
-              </Text>
-              <Text style={[styles.emptyText, { color: colors.subtext }]}>
-                Add items to your {activeTab.toLowerCase()} checklist to ensure
-                consistent trade execution
-              </Text>
+            
+            <View style={styles.formActions}>
+              <TouchableOpacity
+                style={[styles.cancelButton, { backgroundColor: colors.surface }]}
+                onPress={() => {
+                  setShowNewRoutineForm(false);
+                  setNewRoutineName('');
+                }}
+              >
+                <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.createButton, { backgroundColor: colors.highlight }]}
+                onPress={handleCreateRoutine}
+              >
+                <Text style={styles.createButtonText}>Create Routine</Text>
+              </TouchableOpacity>
             </View>
-          )
-        ) : (
-          <View style={[styles.emptyState, { backgroundColor: colors.card }]}>
-            <Text style={[styles.emptyIcon, { color: colors.subtext }]}>
-              📋
-            </Text>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              No Checklist Template
-            </Text>
-            <Text style={[styles.emptyText, { color: colors.subtext }]}>
-              Create your first checklist template in Settings to get started
-            </Text>
           </View>
         )}
 
-        {/* Trading Phases Info */}
-        <View style={[styles.infoCard, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.infoTitle, { color: colors.text }]}>
-            🎯 Trading Execution Phases
-          </Text>
-          <View style={styles.phasesList}>
-            <View style={styles.phase}>
-              <View style={[styles.phaseNumber, { backgroundColor: `${colors.highlight}20` }]}>
-                <Text style={[styles.phaseNumberText, { color: colors.highlight }]}>
-                  1
+        {/* Active Routine Content */}
+        {activeRoutine ? (
+          <View style={[styles.routineContent, { backgroundColor: colors.card }]}>
+            <View style={styles.routineHeader}>
+              <View>
+                <Text style={[styles.routineName, { color: colors.text }]}>{activeRoutine.name}</Text>
+                <Text style={[styles.routineSchedule, { color: colors.subtext }]}>
+                  {activeRoutine.schedule === 'both' ? 'Every day' : 
+                   activeRoutine.schedule === 'weekday' ? 'Weekdays only' : 'Weekends only'}
                 </Text>
               </View>
-              <View style={styles.phaseContent}>
-                <Text style={[styles.phaseTitle, { color: colors.text }]}>
-                  Pre-Market Analysis
-                </Text>
-                <Text style={[styles.phaseText, { color: colors.subtext }]}>
-                  Directional bias, liquidity marking, sentiment check
-                </Text>
-              </View>
+              <TouchableOpacity 
+                style={styles.deleteButton}
+                onPress={() => handleDeleteRoutine(activeRoutine.id)}
+              >
+                <Text style={styles.deleteButtonText}>🗑️</Text>
+              </TouchableOpacity>
             </View>
-            <View style={styles.phase}>
-              <View style={[styles.phaseNumber, { backgroundColor: `${colors.highlight}20` }]}>
-                <Text style={[styles.phaseNumberText, { color: colors.highlight }]}>
-                  2
-                </Text>
-              </View>
-              <View style={styles.phaseContent}>
-                <Text style={[styles.phaseTitle, { color: colors.text }]}>
-                  Execution Validation
-                </Text>
-                <Text style={[styles.phaseText, { color: colors.subtext }]}>
-                  Check all critical items before entry confirmation
-                </Text>
-              </View>
+            
+            {/* Progress Bar */}
+            <View style={styles.progressBarContainer}>
+              <View style={[styles.progressBarBackground, { backgroundColor: colors.surface }]} />
+              <View 
+                style={[
+                  styles.progressBarFill, 
+                  { 
+                    backgroundColor: colors.highlight,
+                    width: `${completionPercentage}%`
+                  }
+                ]} 
+              />
+              <Text style={[styles.progressText, { color: colors.text }]}>
+                {completionPercentage}% completed ({completedItems}/{totalItems})
+              </Text>
             </View>
-            <View style={styles.phase}>
-              <View style={[styles.phaseNumber, { backgroundColor: `${colors.highlight}20` }]}>
-                <Text style={[styles.phaseNumberText, { color: colors.highlight }]}>
-                  3
-                </Text>
-              </View>
-              <View style={styles.phaseContent}>
-                <Text style={[styles.phaseTitle, { color: colors.text }]}>
-                  Post-Trade Review
-                </Text>
-                <Text style={[styles.phaseText, { color: colors.subtext }]}>
-                  Document outcome, emotions, and lessons learned
-                </Text>
-              </View>
+            
+            {/* Add Item Form */}
+            <View style={[styles.addItemForm, { backgroundColor: colors.surface }]}>
+              <TextInput
+                style={[styles.itemInput, { color: colors.text }]}
+                placeholder="Add a new routine item..."
+                placeholderTextColor={colors.subtext}
+                value={newItemText}
+                onChangeText={setNewItemText}
+              />
+              <TouchableOpacity 
+                style={[styles.addButton, { backgroundColor: colors.highlight }]}
+                onPress={handleAddItem}
+              >
+                <Text style={styles.addButtonText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {/* Routine Items */}
+            <View style={styles.itemsContainer}>
+              {activeRoutine.items.length === 0 ? (
+                <View style={styles.emptyItems}>
+                  <Text style={[styles.emptyItemsText, { color: colors.subtext }]}>
+                    No items in this routine yet. Add your first item above.
+                  </Text>
+                </View>
+              ) : (
+                activeRoutine.items.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[
+                      styles.item,
+                      item.completed && styles.completedItem,
+                      { backgroundColor: colors.surface }
+                    ]}
+                    onPress={() => handleToggleItem(item.id)}
+                  >
+                    <View style={[
+                      styles.checkbox,
+                      item.completed && styles.checked,
+                      { borderColor: item.completed ? colors.highlight : colors.neutral }
+                    ]}>
+                      {item.completed && <Text style={styles.checkmark}>✓</Text>}
+                    </View>
+                    <View style={styles.itemContent}>
+                      <Text style={[
+                        styles.itemText,
+                        item.completed && styles.completedItemText,
+                        { color: item.completed ? colors.highlight : colors.text }
+                      ]}>
+                        {item.label}
+                      </Text>
+                      {item.completed && item.completedAt && (
+                        <Text style={[styles.completedAt, { color: colors.subtext }]}>
+                          Completed {item.completedAt.toLocaleDateString()}
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
             </View>
           </View>
-        </View>
+        ) : (
+          <View style={[styles.emptyState, { backgroundColor: colors.card }]}>
+            <Text style={[styles.emptyIcon, { color: colors.subtext }]}>📋</Text>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No Routines Yet</Text>
+            <Text style={[styles.emptyText, { color: colors.subtext }]}>
+              Create your first trading routine to build consistency
+            </Text>
+            <TouchableOpacity
+              style={[styles.createFirstButton, { backgroundColor: colors.highlight }]}
+              onPress={() => setShowNewRoutineForm(true)}
+            >
+              <Text style={styles.createFirstButtonText}>Create Your First Routine</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -349,202 +565,292 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    fontWeight: '500',
   },
-  headerBadge: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerBadgeText: {
-    fontSize: 28,
-  },
-  statsCard: {
-    flexDirection: 'row',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 4,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-  },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  statDivider: {
-    width: 1,
-    opacity: 0.3,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 16,
-  },
-  tab: {
-    flex: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  tabContent: {
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    gap: 6,
-  },
-  tabIcon: {
-    fontSize: 24,
-  },
-  tabText: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  countBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    minWidth: 24,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  countText: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  descriptionCard: {
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
-  },
-  descriptionText: {
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-  checklistContainer: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  checklistHeader: {
+  streakBanner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
   },
-  checklistTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: 0.3,
+  streakContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  itemCountBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+  streakEmoji: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  streakLabel: {
+    fontSize: 14,
+  },
+  streakValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  completeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 8,
   },
-  itemCountText: {
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  completeButtonText: {
+    color: '#000',
+    fontWeight: 'bold',
+  },
+  routineSelector: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  routineTabs: {
+    flexDirection: 'row',
+  },
+  routineTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginRight: 10,
+    borderWidth: 1,
+  },
+  activeRoutineTab: {
+    // Styles applied conditionally
+  },
+  routineTabText: {
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  routineStreak: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  newRoutineButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#444',
+  },
+  newRoutineText: {
+    fontSize: 14,
+  },
+  newRoutineForm: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  formTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  inputContainer: {
+    borderRadius: 8,
+  },
+  input: {
+    padding: 12,
+    fontSize: 16,
+  },
+  scheduleOptions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  scheduleOption: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  selectedScheduleOption: {
+    // Styles applied conditionally
+  },
+  scheduleText: {
+    fontWeight: '600',
+  },
+  formActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  cancelButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontWeight: '600',
+  },
+  createButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  createButtonText: {
+    color: '#000',
+    fontWeight: 'bold',
+  },
+  routineContent: {
+    borderRadius: 12,
+    padding: 16,
+  },
+  routineHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  routineName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  routineSchedule: {
+    fontSize: 14,
+    marginTop: 4,
+  },
+  deleteButton: {
+    padding: 8,
+  },
+  deleteButtonText: {
+    fontSize: 18,
+  },
+  progressBarContainer: {
+    position: 'relative',
+    height: 30,
+    marginBottom: 20,
+  },
+  progressBarBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 15,
+  },
+  progressBarFill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    height: 30,
+    borderRadius: 15,
+  },
+  progressText: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    textAlign: 'center',
+    lineHeight: 30,
+    fontWeight: '600',
+  },
+  addItemForm: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    borderRadius: 8,
+  },
+  itemInput: {
+    flex: 1,
+    padding: 12,
+    fontSize: 16,
+  },
+  addButton: {
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    borderRadius: 8,
+  },
+  addButtonText: {
+    color: '#000',
+    fontWeight: 'bold',
+  },
+  itemsContainer: {
+    gap: 8,
+  },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+  },
+  completedItem: {
+    // Styles applied conditionally
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checked: {
+    // Styles applied conditionally
+  },
+  checkmark: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  itemContent: {
+    flex: 1,
+  },
+  itemText: {
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  completedItemText: {
+    textDecorationLine: 'line-through',
+    // Styles applied conditionally
+  },
+  completedAt: {
+    fontSize: 12,
+  },
+  emptyItems: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyItemsText: {
+    textAlign: 'center',
   },
   emptyState: {
-    borderRadius: 16,
-    padding: 40,
+    padding: 32,
+    borderRadius: 12,
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
   },
   emptyIcon: {
-    fontSize: 56,
-    opacity: 0.5,
+    fontSize: 48,
+    marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 8,
   },
   emptyText: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 16,
     textAlign: 'center',
-    lineHeight: 20,
-    maxWidth: 280,
+    marginBottom: 24,
   },
-  infoCard: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+  createFirstButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
   },
-  infoTitle: {
+  createFirstButtonText: {
+    color: '#000',
+    fontWeight: 'bold',
     fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 16,
-    letterSpacing: 0.3,
-  },
-  phasesList: {
-    gap: 16,
-  },
-  phase: {
-    flexDirection: 'row',
-    gap: 14,
-  },
-  phaseNumber: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  phaseNumberText: {
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  phaseContent: {
-    flex: 1,
-    gap: 4,
-  },
-  phaseTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  phaseText: {
-    fontSize: 12,
-    fontWeight: '500',
-    lineHeight: 18,
   },
 });
