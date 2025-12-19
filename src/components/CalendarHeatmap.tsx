@@ -12,6 +12,23 @@ interface CalendarHeatmapProps {
 
 export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: CalendarHeatmapProps) {
   const { colors } = useTheme();
+  const toDate = (value: any): Date | null => {
+    if (!value && value !== 0) return null;
+    if (typeof value?.toDate === 'function') {
+      try {
+        const d = value.toDate();
+        return isNaN(d.getTime()) ? null : d;
+      } catch {
+        return null;
+      }
+    }
+    if (typeof value === 'number') {
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  };
   const now = new Date();
   const [monthIndex, setMonthIndex] = useState(now.getMonth());
   const [yearIdx, setYearIdx] = useState(now.getFullYear());
@@ -37,7 +54,9 @@ export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: 
   const tradesByDate = useMemo(() => {
     const grouped: Record<string, Trade[]> = {};
     trades.forEach((trade) => {
-      const dateKey = trade.createdAt.toISOString().split('T')[0];
+      const d = toDate((trade as any).createdAt);
+      if (!d) return;
+      const dateKey = d.toISOString().split('T')[0];
       if (!grouped[dateKey]) grouped[dateKey] = [];
       grouped[dateKey].push(trade);
     });
@@ -190,9 +209,9 @@ export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: 
           </Text>
           <Text style={[styles.subtitle, { color: colors.subtext }]}>
             {trades.filter(t => {
-              const tradeMonth = new Date(t.createdAt).getMonth();
-              const tradeYear = new Date(t.createdAt).getFullYear();
-              return tradeMonth === month && tradeYear === year;
+              const d = toDate((t as any).createdAt);
+              if (!d) return false;
+              return d.getMonth() === month && d.getFullYear() === year;
             }).length} trades this month
           </Text>
         </View>

@@ -12,15 +12,24 @@ import {
   Alert,
   Switch,
   Dimensions,
+  Modal,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
 import {
   calculateRiskToReward,
   calculateConfluenceScore,
   assignGrade,
+  calculateWinRate,
+  calculateAverageRR,
 } from "../utils/calculations";
 import { Trade, TradeDirection, TradeSession, Strategy } from "../types";
-import { getUserStrategies, addTrade } from "../services/firebaseService";
+import { getUserStrategies, addTrade, getUserAccounts, createAccount, updateAccount, deleteAccount } from "../services/firebaseService";
 import { useAppContext } from "../hooks/useAppContext";
+import AccountModal from "../components/AccountModal";
+
+type LabeledScreenshot = { uri: string; label?: string };
 
 interface AddTradeScreenProps {
   navigation: any;
@@ -51,7 +60,7 @@ export default function AddTradeScreen({
   navigation,
   route,
 }: AddTradeScreenProps) {
-  const { state } = useAppContext();
+  const { state, dispatch } = useAppContext();
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(
     null
@@ -76,9 +85,10 @@ export default function AddTradeScreen({
     }
   }, [selectedStrategyId, strategies]);
   
-  const [checkedItems, setCheckedItems] = useState<string[]>([]);
+  const [selectedChecklist, setSelectedChecklist] = useState<string[]>([]);
   const [beforeImage, setBeforeImage] = useState<string>("");
   const [afterImage, setAfterImage] = useState<string>("");
+  const [screenshots, setScreenshots] = useState<Array<{ uri: string; label?: string }>>([]);
   const [pair, setPair] = useState("GBPUSD");
   const [direction, setDirection] = useState<TradeDirection>("Buy");
   const [session, setSession] = useState<TradeSession>("London");
@@ -91,9 +101,31 @@ export default function AddTradeScreen({
   const [emotion, setEmotion] = useState("5");
   const [ruleDeviation, setRuleDeviation] = useState(false);
   const [notes, setNotes] = useState("");
-  const [selectedChecklist, setSelectedChecklist] = useState<string[]>([]);
+  // const [selectedChecklist, setSelectedChecklist] = useState<string[]>([]);
   const [rr, setRR] = useState<number | null>(null);
   const [confluenceScore, setConfluenceScore] = useState<number | null>(null);
+  const [riskAmount, setRiskAmount] = useState(""); // Add riskAmount state variable
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+  const [accountModalVisible, setAccountModalVisible] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<any | null>(null);
+  const [accountBalance, setAccountBalance] = useState<number>(0);
+  const [riskPercentage, setRiskPercentage] = useState<number>(2);
+  const [positionSize, setPositionSize] = useState<number | null>(null);
+  const [isResultAutoCalculated, setIsResultAutoCalculated] = useState<boolean>(false);
+  const [tradeDate, setTradeDate] = useState<Date>(new Date());
+  const [tradeTimeText, setTradeTimeText] = useState<string>(new Date().toISOString().slice(11,16));
+  const [marketCondition, setMarketCondition] = useState<'Trending'|'Ranging'|'Volatile'|'News'|''>('');
+  const [showConfirmation, setShowConfirmation] = useState<boolean>(false);
+  const [pendingTrade, setPendingTrade] = useState<any | null>(null);
+  // Responsive / layout
+  const [screenWidth, setScreenWidth] = useState<number>(Dimensions.get('window').width);
+  const [isSmallScreen, setIsSmallScreen] = useState<boolean>(screenWidth < 380);
+  const [isMediumScreen, setIsMediumScreen] = useState<boolean>(screenWidth >= 380 && screenWidth < 640);
+
+  // Collapsible optional sections
+  const [showRiskDetails, setShowRiskDetails] = useState<boolean>(!isSmallScreen);
+  const [showTradeContextDetails, setShowTradeContextDetails] = useState<boolean>(!isSmallScreen);
+  const thumbnailSize = isSmallScreen ? 72 : isMediumScreen ? 88 : 100;
 
   useEffect(() => {
     if (entryPrice && stopLoss && takeProfit) {
@@ -108,13 +140,180 @@ export default function AddTradeScreen({
   }, [entryPrice, stopLoss, takeProfit, direction]);
 
   useEffect(() => {
-    if (selectedChecklist.length > 0) {
-      const score = (selectedChecklist.length / 5) * 100;
+    // Enable LayoutAnimation on Android
+    if (Platform.OS === 'android' && UIManager && UIManager.setLayoutAnimationEnabledExperimental) {
+      try { UIManager.setLayoutAnimationEnabledExperimental(true); } catch (e) { /* ignore */ }
+    }
+
+    const onChange = ({ window }: { window: { width: number } }) => {
+      setScreenWidth(window.width);
+      setIsSmallScreen(window.width < 380);
+      setIsMediumScreen(window.width >= 380 && window.width < 640);
+      // collapse optional sections on small screens
+      if (window.width < 380) {
+        setShowRiskDetails(false);
+        setShowTradeContextDetails(false);
+      } else {
+        setShowRiskDetails(true);
+        setShowTradeContextDetails(true);
+      }
+    };
+
+    const subscription: any = Dimensions.addEventListener('change', onChange as any);
+    return () => {
+      try {
+        if (subscription && typeof subscription.remove === 'function') subscription.remove();
+      } catch (e) {
+        /* ignore */
+      }
+    };
+  }, []);
+
+  // Safe LayoutAnimation caller (fallback no-op for unsupported platforms)
+  const configureLayoutAnimationNext = () => {
+    try {
+      if (Platform.OS === 'android' && UIManager && UIManager.setLayoutAnimationEnabledExperimental) {
+        UIManager.setLayoutAnimationEnabledExperimental(true);
+      }
+      if (LayoutAnimation && LayoutAnimation.configureNext) {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      }
+    } catch (e) {
+      // noop fallback
+    }
+  };
+
+  // Initialize selected account from context if available
+  useEffect(() => {
+    if (state.accounts && state.accounts.length > 0) {
+      // If no selected account yet, pick the first
+      if (!selectedAccountId) setSelectedAccountId(state.accounts[0].id);
+      // Update account balance when selected changes
+      const acc = state.accounts.find((a) => a.id === selectedAccountId) || state.accounts[0];
+      if (acc) setAccountBalance(Number(acc.currentBalance || acc.startingBalance || 0));
+    }
+  }, [state.accounts, selectedAccountId]);
+
+  // Auto-calculate result when actual exit is provided (unless manually overridden)
+  useEffect(() => {
+    if (!actualExit) return;
+    if (!entryPrice || !stopLoss || !takeProfit) return;
+
+    const e = Number(entryPrice);
+    const sl = Number(stopLoss);
+    const tp = Number(takeProfit);
+    const ax = Number(actualExit);
+
+    const determineResult = () => {
+      if (direction === "Buy") {
+        if (ax <= sl) return "Loss";
+        if (ax >= tp) return "Win";
+        if (ax === e) return "Break-even";
+        return "";
+      } else {
+        // Sell
+        if (ax >= sl) return "Loss";
+        if (ax <= tp) return "Win";
+        if (ax === e) return "Break-even";
+        return "";
+      }
+    };
+
+    const autoRes = determineResult();
+    if (autoRes) {
+      setResult(autoRes as any);
+      setIsResultAutoCalculated(true);
+    }
+  }, [actualExit, entryPrice, stopLoss, takeProfit, direction]);
+
+  // Position size & risk amount calculation
+  useEffect(() => {
+    if (!selectedAccountId) return;
+    if (!entryPrice || !stopLoss) return;
+
+    const e = Number(entryPrice);
+    const sl = Number(stopLoss);
+    const stopDistance = Math.abs(e - sl);
+    if (stopDistance === 0) return;
+
+    // Risk amount based on percentage of account balance
+    const calculatedRiskAmount = accountBalance * (riskPercentage / 100);
+    // Position size (units) = RiskAmount / StopDistance (price units)
+    const calculatedPositionSize = calculatedRiskAmount / stopDistance;
+
+    setPositionSize(parseFloat(calculatedPositionSize.toFixed(4)));
+    setRiskAmount(String(parseFloat(calculatedRiskAmount.toFixed(2))));
+  }, [selectedAccountId, accountBalance, entryPrice, stopLoss, riskPercentage]);
+
+  useEffect(() => {
+    if (selectedChecklist.length > 0 && checklistItems.length > 0) {
+      // Create a map of item IDs to their weights
+      const itemWeights = new Map<string, number>();
+      checklistItems.forEach(item => {
+        itemWeights.set(item.id, item.weight);
+      });
+      
+      // Calculate confluence score using the proper formula
+      const score = calculateConfluenceScore(selectedChecklist, itemWeights);
       setConfluenceScore(parseFloat(score.toFixed(2)));
     } else {
       setConfluenceScore(null);
     }
-  }, [selectedChecklist]);
+  }, [selectedChecklist, checklistItems]);
+
+  // Account modal and management handlers
+  const openAccountModal = () => setAccountModalVisible(true);
+  const closeAccountModal = () => {
+    setAccountModalVisible(false);
+    setEditingAccount(null);
+  };
+
+  const refreshAccounts = async () => {
+    try {
+      const userId = state.user?.uid;
+      if (!userId) return;
+      const accounts = await getUserAccounts(userId);
+      dispatch({ type: 'SET_ACCOUNTS', payload: accounts });
+    } catch (err) {
+      console.error('Failed to refresh accounts', err);
+    }
+  };
+
+  const handleCreateAccount = async (name: string, startingBalance: number) => {
+    try {
+      const userId = state.user?.uid;
+      if (!userId) throw new Error('Not authenticated');
+      await createAccount(userId, name, startingBalance);
+      await refreshAccounts();
+    } catch (err) {
+      console.error('Create account failed', err);
+    }
+  };
+
+  const handleUpdateAccount = async (accountId: string, updates: Partial<any>) => {
+    try {
+      await updateAccount(accountId, updates as any);
+      await refreshAccounts();
+    } catch (err) {
+      console.error('Update account failed', err);
+    }
+  };
+
+  const handleDeleteAccount = async (accountId: string) => {
+    try {
+      await deleteAccount(accountId);
+      await refreshAccounts();
+      if (selectedAccountId === accountId) setSelectedAccountId("");
+    } catch (err) {
+      console.error('Delete account failed', err);
+    }
+  };
+
+  const handleSelectAccount = (accountId: string) => {
+    setSelectedAccountId(accountId);
+    const acc = state.accounts.find((a) => a.id === accountId);
+    if (acc) setAccountBalance(Number(acc.currentBalance || acc.startingBalance || 0));
+  };
 
   const handleSubmit = async () => {
     if (!entryPrice || !stopLoss || !takeProfit) {
@@ -123,6 +322,27 @@ export default function AddTradeScreen({
         "Please fill in entry, stop loss, and take profit prices"
       );
       return;
+    }
+
+    if (!selectedAccountId) {
+      Alert.alert("Validation Error", "Please select a trading account for this trade.");
+      return;
+    }
+
+    // Directional price validation
+    const e = Number(entryPrice);
+    const sl = Number(stopLoss);
+    const tp = Number(takeProfit);
+    if (direction === "Buy") {
+      if (!(sl < e && e < tp)) {
+        Alert.alert("Validation Error", "For a Buy trade ensure Stop Loss < Entry < Take Profit.");
+        return;
+      }
+    } else {
+      if (!(tp < e && e < sl)) {
+        Alert.alert("Validation Error", "For a Sell trade ensure Take Profit < Entry < Stop Loss.");
+        return;
+      }
     }
 
     if (
@@ -139,21 +359,24 @@ export default function AddTradeScreen({
       return;
     }
 
-    let beforeImageUrl = beforeImage;
-    let afterImageUrl = afterImage;
-    if (beforeImage && beforeImage.startsWith("blob:")) {
-      beforeImageUrl =
-        (await uploadTradeImage("temp", beforeImage as any)) || beforeImage;
+    // Build trade timestamp combining date + time text (if provided)
+    let tradeTimestamp = new Date(tradeDate);
+    try {
+      if (tradeTimeText && tradeTimeText.includes(':')) {
+        const [hh, mm] = tradeTimeText.split(':').map((s) => parseInt(s, 10));
+        if (!isNaN(hh) && !isNaN(mm)) {
+          tradeTimestamp.setHours(hh, mm, 0, 0);
+        }
+      }
+    } catch (err) {
+      // keep default tradeDate if parsing fails
     }
-    if (afterImage && afterImage.startsWith("blob:")) {
-      afterImageUrl =
-        (await uploadTradeImage("temp", afterImage as any)) || afterImage;
-    }
-    
-    const newTrade: Partial<Trade> = {
+
+    const previewTrade: any = {
       pair: pair as any,
       direction,
       session,
+      accountId: selectedAccountId || undefined,
       entryPrice: Number(entryPrice),
       stopLoss: Number(stopLoss),
       takeProfit: Number(takeProfit),
@@ -166,27 +389,49 @@ export default function AddTradeScreen({
       setupType,
       emotionalRating: Number(emotion),
       ruleDeviation,
-      screenshots: [beforeImageUrl, afterImageUrl].filter(Boolean),
+      screenshots: screenshots,
       notes,
-      checklist: checkedItems,
+      checklist: selectedChecklist,
+      riskAmount: riskAmount ? Number(riskAmount) : undefined,
+      marketCondition: marketCondition || undefined,
+      tradeTime: tradeTimestamp,
     };
 
+    // Show confirmation modal with previewTrade
+    setPendingTrade(previewTrade);
+    setShowConfirmation(true);
+  };
+
+  // Confirm and save the pending trade (uploads screenshots then persists)
+  const confirmAndSaveTrade = async () => {
+    if (!pendingTrade) return;
     try {
-      // Get user ID from context
       const userId = state.user?.uid;
-      
-      if (!userId) {
-        throw new Error("User not authenticated");
+      if (!userId) throw new Error("User not authenticated");
+
+      // Upload any local blobs from the labeled screenshots array
+      let uploadedScreenshots = [...(pendingTrade.screenshots || [])];
+      for (let i = 0; i < uploadedScreenshots.length; i++) {
+        const sObj = uploadedScreenshots[i];
+        if (sObj && String(sObj.uri).startsWith("blob:")) {
+          const uploaded = (await uploadTradeImage("temp", sObj.uri as any)) || sObj.uri;
+          uploadedScreenshots[i] = { ...sObj, uri: uploaded };
+        }
       }
 
-      // Save trade to Firebase
-      await addTrade(userId, newTrade as Omit<Trade, "id">);
-      
+      const toSave = {
+        ...pendingTrade,
+        screenshots: uploadedScreenshots.filter(Boolean),
+      } as Omit<Trade, "id">;
+
+      await addTrade(userId, toSave);
+      setShowConfirmation(false);
+      setPendingTrade(null);
       navigation.goBack();
       Alert.alert("Success", `Trade recorded: ${pair} ${direction}`);
-    } catch (error) {
-      console.error("Error saving trade:", error);
-      Alert.alert("Error", "Failed to save trade. Please try again.");
+    } catch (err) {
+      console.error('Error saving confirmed trade', err);
+      Alert.alert('Error', 'Failed to save trade. Please try again.');
     }
   };
 
@@ -199,7 +444,14 @@ export default function AddTradeScreen({
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={true}
+      contentContainerStyle={{ paddingBottom: 260, paddingTop: 12, flexGrow: 1 }}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      nestedScrollEnabled={true}
+    >
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Add New Trade</Text>
@@ -232,6 +484,40 @@ export default function AddTradeScreen({
               Grade: {confluenceScore ? assignGrade(confluenceScore) : '—'}
             </Text>
           </View>
+        </View>
+      </View>
+
+      {/* Account Selection */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Trading Account</Text>
+          <TouchableOpacity onPress={openAccountModal}>
+            <Text style={{ color: '#00d4d4', fontWeight: '700' }}>Manage Accounts</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          {state.accounts && state.accounts.length > 0 ? (
+            state.accounts.map((acc) => (
+              <TouchableOpacity
+                key={acc.id}
+                style={[
+                  styles.gridButton,
+                  selectedAccountId === acc.id && styles.gridButtonActive,
+                ]}
+                onPress={() => handleSelectAccount(acc.id)}
+              >
+                <Text style={[styles.gridButtonText, selectedAccountId === acc.id && styles.gridButtonTextActive]}>
+                  {acc.name}
+                </Text>
+                <Text style={{ color: '#aaa', fontSize: 12 }}>${acc.currentBalance?.toFixed ? acc.currentBalance.toFixed(2) : acc.currentBalance}</Text>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <TouchableOpacity style={styles.gridButton} onPress={openAccountModal}>
+              <Text style={styles.gridButtonText}>Create Account</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -334,6 +620,64 @@ export default function AddTradeScreen({
         </View>
       </View>
 
+      {/* Trade Context (collapsible)*/}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Trade Context</Text>
+            <TouchableOpacity onPress={() => { configureLayoutAnimationNext(); setShowTradeContextDetails(!showTradeContextDetails); }} style={{ padding: 8, borderRadius: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.sectionToggle}>{showTradeContextDetails ? 'Hide' : 'Show'}</Text>
+                <Text
+                  style={[styles.chevron, { transform: [{ rotate: showTradeContextDetails ? '180deg' : '0deg' }] }]}
+                >
+                  ▾
+                </Text>
+              </View>
+            </TouchableOpacity>
+        </View>
+
+        {showTradeContextDetails && (
+          <View>
+            <View style={styles.priceInputWrapper}>
+              <Text style={styles.inputLabel}>Entry Date</Text>
+              <TextInput
+                style={styles.priceInput}
+                value={tradeDate.toISOString().slice(0,10)}
+                onChangeText={(t) => {
+                  const d = new Date(t);
+                  if (!isNaN(d.getTime())) setTradeDate(d);
+                }}
+              />
+            </View>
+
+            <View style={styles.priceInputWrapper}>
+              <Text style={styles.inputLabel}>Entry Time (HH:MM)</Text>
+              <TextInput
+                style={styles.priceInput}
+                value={tradeTimeText}
+                onChangeText={setTradeTimeText}
+                placeholder="14:30"
+              />
+            </View>
+
+            <View style={{ marginTop: 8 }}>
+              <Text style={styles.inputLabel}>Market Condition</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                {['Trending','Ranging','Volatile','News'].map((c) => (
+                  <TouchableOpacity
+                    key={c}
+                    style={[styles.gridButton, marketCondition === c && styles.gridButtonActive]}
+                    onPress={() => setMarketCondition(c as any)}
+                  >
+                    <Text style={[styles.gridButtonText, marketCondition === c && styles.gridButtonTextActive]}>{c}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
+      </View>
+
       {/* Price Inputs */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Price Levels</Text>
@@ -385,6 +729,53 @@ export default function AddTradeScreen({
         </View>
       </View>
 
+      {/* Risk Management (collapsible) */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Risk Management</Text>
+            <TouchableOpacity onPress={() => { configureLayoutAnimationNext(); setShowRiskDetails(!showRiskDetails); }} style={{ padding: 8, borderRadius: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.sectionToggle}>{showRiskDetails ? 'Hide' : 'Show'}</Text>
+                <Text
+                  style={[styles.chevron, { transform: [{ rotate: showRiskDetails ? '180deg' : '0deg' }] }]}
+                >
+                  ▾
+                </Text>
+              </View>
+            </TouchableOpacity>
+        </View>
+
+        {showRiskDetails && (
+          <View>
+            <Text style={styles.inputLabel}>Account Balance</Text>
+            <Text style={{ color: '#f5f5f5', fontWeight: '700' }}>${accountBalance?.toFixed ? accountBalance.toFixed(2) : accountBalance}</Text>
+
+            <View style={{ marginTop: 12 }}>
+              <Text style={styles.inputLabel}>Risk %</Text>
+              <View style={styles.inputWithIcon}>
+                <TextInput
+                  style={styles.priceInput}
+                  value={String(riskPercentage)}
+                  onChangeText={(t) => setRiskPercentage(Number(t) || 0)}
+                  keyboardType="decimal-pad"
+                />
+                <Text style={{ color: '#aaa', fontWeight: '700' }}>%</Text>
+              </View>
+            </View>
+
+            <View style={{ marginTop: 12 }}>
+              <Text style={styles.inputLabel}>Calculated Position Size</Text>
+              <Text style={{ color: '#f5f5f5', fontWeight: '700' }}>{positionSize ? positionSize : '—'}</Text>
+            </View>
+
+            <View style={{ marginTop: 12 }}>
+              <Text style={styles.inputLabel}>Risk Amount</Text>
+              <Text style={{ color: '#f5f5f5', fontWeight: '700' }}>${riskAmount || '—'}</Text>
+            </View>
+          </View>
+        )}
+      </View>
+
       {/* Actual Exit (Optional) */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -418,7 +809,10 @@ export default function AddTradeScreen({
                 r === "Loss" && result === r && styles.resultLoss,
                 r === "Break-even" && result === r && styles.resultBreakeven,
               ]}
-              onPress={() => setResult(r as any)}
+              onPress={() => {
+                setResult(r as any);
+                setIsResultAutoCalculated(false);
+              }}
             >
               <Text style={styles.resultIcon}>
                 {r === "Win" ? '✓' : r === "Loss" ? '✗' : '—'}
@@ -532,7 +926,7 @@ export default function AddTradeScreen({
             <Text style={styles.sectionTitle}>Setup Checklist</Text>
             <View style={styles.checklistCounter}>
               <Text style={styles.checklistCounterText}>
-                {checkedItems.length}/{checklistItems.length}
+                {selectedChecklist.length}/{checklistItems.length}
               </Text>
             </View>
           </View>
@@ -561,25 +955,25 @@ export default function AddTradeScreen({
                 key={item.id}
                 style={[
                   styles.checklistChip,
-                  checkedItems.includes(item.id) && styles.checklistChipActive,
+                  selectedChecklist.includes(item.id) && styles.checklistChipActive,
                 ]}
                 onPress={() =>
-                  setCheckedItems(
-                    checkedItems.includes(item.id)
-                      ? checkedItems.filter((i) => i !== item.id)
-                      : [...checkedItems, item.id]
+                  setSelectedChecklist(
+                    selectedChecklist.includes(item.id)
+                      ? selectedChecklist.filter((i) => i !== item.id)
+                      : [...selectedChecklist, item.id]
                   )
                 }
               >
                 <View style={styles.checklistChipIcon}>
                   <Text style={styles.checklistChipIconText}>
-                    {checkedItems.includes(item.id) ? '✓' : '○'}
+                    {selectedChecklist.includes(item.id) ? '✓' : '○'}
                   </Text>
                 </View>
                 <Text
                   style={[
                     styles.checklistChipText,
-                    checkedItems.includes(item.id) && styles.checklistChipTextActive,
+                    selectedChecklist.includes(item.id) && styles.checklistChipTextActive,
                   ]}
                 >
                   {item.label}
@@ -597,25 +991,17 @@ export default function AddTradeScreen({
         <View style={styles.imageSection}>
           <View style={styles.imageCard}>
             <View style={styles.imageHeader}>
-              <Text style={styles.imageLabel}>Before Entry</Text>
-              {beforeImage && <Text style={styles.imageCheck}>✓</Text>}
+              <Text style={styles.imageLabel}>Screenshots</Text>
+              {screenshots.length > 0 && <Text style={styles.imageCheck}>✓</Text>}
             </View>
             <ImageUploader
-              screenshots={beforeImage ? [beforeImage] : []}
-              onAdd={(uri) => setBeforeImage(uri)}
-              onRemove={() => setBeforeImage("")}
-            />
-          </View>
-
-          <View style={styles.imageCard}>
-            <View style={styles.imageHeader}>
-              <Text style={styles.imageLabel}>After Exit</Text>
-              {afterImage && <Text style={styles.imageCheck}>✓</Text>}
-            </View>
-            <ImageUploader
-              screenshots={afterImage ? [afterImage] : []}
-              onAdd={(uri) => setAfterImage(uri)}
-              onRemove={() => setAfterImage("")}
+              screenshots={screenshots}
+              onAdd={(uri) => setScreenshots([...screenshots, { uri, label: 'Other' }])}
+              onRemove={(uri) => setScreenshots(screenshots.filter((s) => s.uri !== uri))}
+              onUpdateLabel={(uri, label) => setScreenshots(screenshots.map(s => s.uri === uri ? { ...s, label } : s))}
+              maxImages={8}
+              thumbnailSize={thumbnailSize}
+              thumbnailMargin={isSmallScreen ? 8 : isMediumScreen ? 10 : 12}
             />
           </View>
         </View>
@@ -643,7 +1029,74 @@ export default function AddTradeScreen({
         <Text style={styles.submitButtonText}>Record Trade</Text>
       </TouchableOpacity>
 
-      <View style={{ height: 40 }} />
+      <AccountModal
+        visible={accountModalVisible}
+        accounts={state.accounts || []}
+        selectedAccountId={selectedAccountId}
+        onSelect={(id) => {
+          handleSelectAccount(id);
+          closeAccountModal();
+        }}
+        onAddAccount={() => {
+          setEditingAccount(null);
+          setAccountModalVisible(true);
+        }}
+        onClose={closeAccountModal}
+        onCreateAccount={handleCreateAccount}
+        onUpdateAccount={handleUpdateAccount}
+        onDeleteAccount={handleDeleteAccount}
+        editingAccount={editingAccount}
+      />
+
+      {/* Confirmation Modal */}
+      <Modal visible={showConfirmation} animationType="slide" transparent>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 16 }}>
+          <View style={{ backgroundColor: '#0d0d0d', borderRadius: 12, padding: 16 }}>
+            <Text style={{ color: '#f5f5f5', fontSize: 18, fontWeight: '800', marginBottom: 8 }}>Confirm Trade</Text>
+            {pendingTrade && (
+              <View>
+                <Text style={{ color: '#aaa' }}>{pendingTrade.pair} • {pendingTrade.direction}</Text>
+                <Text style={{ color: '#f5f5f5', fontWeight: '700', marginTop: 8 }}>Entry: {pendingTrade.entryPrice}</Text>
+                <Text style={{ color: '#f5f5f5', fontWeight: '700' }}>SL: {pendingTrade.stopLoss} • TP: {pendingTrade.takeProfit}</Text>
+                <Text style={{ color: '#aaa', marginTop: 8 }}>R:R: {pendingTrade.riskToReward ? `1:${pendingTrade.riskToReward.toFixed ? pendingTrade.riskToReward.toFixed(2) : pendingTrade.riskToReward}` : '—'}</Text>
+                <Text style={{ color: '#aaa' }}>Confluence: {pendingTrade.confluenceScore ? `${pendingTrade.confluenceScore.toFixed ? pendingTrade.confluenceScore.toFixed(0) : pendingTrade.confluenceScore}%` : '—'}</Text>
+                <Text style={{ color: '#aaa' }}>Account: {state.accounts.find(a => a.id === pendingTrade.accountId)?.name || '—'}</Text>
+                <Text style={{ color: '#aaa' }}>Risk Amount: ${pendingTrade.riskAmount ?? '—'}</Text>
+                <Text style={{ color: '#aaa' }}>Market: {pendingTrade.marketCondition || '—'}</Text>
+
+                {/* Metrics preview */}
+                <View style={{ marginTop: 12, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#222' }}>
+                  <Text style={{ color: '#aaa', marginBottom: 6, fontWeight: '700' }}>Projected Impact</Text>
+                  <Text style={{ color: '#aaa' }}>
+                    Win Rate: {calculateWinRate(state.trades || []).toFixed(1)}% → {pendingTrade.result ? calculateWinRate([...(state.trades || []), pendingTrade as any]).toFixed(1) : '—'}%
+                  </Text>
+                  <Text style={{ color: '#aaa' }}>
+                    Avg R:R: {calculateAverageRR(state.trades || []).toFixed(2)} → {pendingTrade.riskToReward ? calculateAverageRR([...(state.trades || []), pendingTrade as any]).toFixed(2) : '—'}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
+              <TouchableOpacity
+                style={[styles.submitButton, { backgroundColor: '#444', flex: 1, marginRight: 8 }]}
+                onPress={() => setShowConfirmation(false)}
+              >
+                <Text style={styles.submitButtonText}>Edit</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.submitButton, { backgroundColor: '#00d4d4', flex: 1 }]}
+                onPress={confirmAndSaveTrade}
+              >
+                <Text style={styles.submitButtonText}>Confirm & Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <View style={{ height: 140 }} />
     </ScrollView>
   );
 }
@@ -1145,6 +1598,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 24,
     gap: 8,
+  },
+  sectionToggle: {
+    color: '#00d4d4',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  chevron: {
+    color: '#00d4d4',
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '700',
   },
   submitButtonIcon: {
     fontSize: 20,

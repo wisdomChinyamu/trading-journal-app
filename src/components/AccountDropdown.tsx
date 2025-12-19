@@ -8,13 +8,7 @@ import {
   ScrollView,
   Animated,
 } from "react-native";
-
-export interface TradingAccount {
-  id: string;
-  name: string;
-  startingBalance: number;
-  currentBalance: number;
-}
+import { TradingAccount } from '../types'; // Import from main types file instead of defining locally
 
 interface AccountDropdownProps {
   accounts: TradingAccount[];

@@ -9,6 +9,7 @@ import {
   Animated,
   Easing,
   Platform,
+  Alert,
 } from "react-native";
 import { useAppContext } from "../hooks/useAppContext";
 import CalendarHeatmap from "../components/CalendarHeatmap";
@@ -21,28 +22,65 @@ import ScreenLayout from "../components/ScreenLayout";
 import { useTheme } from "../components/ThemeProvider";
 import EquityChart from "../components/EquityChart";
 import WeeklySummaryPanel from "../components/WeeklySummaryPanel";
+import {
+  calculateRiskToReward,
+  calculateConfluenceScore,
+  assignGrade,
+} from "../utils/calculations";
+import { Trade, TradeDirection, TradeSession, Strategy } from "../types";
+import { getUserStrategies, addTrade } from "../services/firebaseService";
+
+// Shared date parsing helper (handles Firestore Timestamp, number, string, Date)
+const parseDate = (value: any): Date | null => {
+  if (!value && value !== 0) return null;
+  if (typeof value?.toDate === "function") {
+    try {
+      const d = value.toDate();
+      return isNaN(d.getTime()) ? null : d;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value === "number") {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+interface AddTradeScreenProps {
+  navigation: any;
+  route?: any;
+}
 
 export default function DashboardScreen() {
-  const { state } = useAppContext();
+  const { state, dispatch } = useAppContext();
   const [showAddTrade, setShowAddTrade] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const { colors, mode } = useTheme();
 
+  
+
   const trades = state.trades || [];
   const equitySeries = React.useMemo(() => {
     if (!trades || trades.length === 0) return [];
-    const sorted = [...trades].sort(
-      (a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
+
+    const withDates = trades
+      .map((t) => ({ t, date: parseDate((t as any).createdAt) }))
+      .filter((x) => x.date !== null) as { t: Trade; date: Date }[];
+
+    if (withDates.length === 0) return [];
+
+    const sorted = [...withDates].sort((a, b) => a.date.getTime() - b.date.getTime());
     let acc = 0;
-    return sorted.map((t) => {
+    return sorted.map(({ t, date }) => {
       const delta =
         (t as any).pnl ??
         (t.result === "Win" ? 1 : t.result === "Loss" ? -1 : 0);
       acc += delta;
       return {
-        date: new Date(t.createdAt).toISOString().split("T")[0],
+        date: date.toISOString().split("T")[0],
         value: acc,
       };
     });
@@ -266,9 +304,30 @@ export default function DashboardScreen() {
         <AddTradeModalAnimated
           visible={showAddTrade}
           onClose={() => setShowAddTrade(false)}
-          onSubmit={(trade: any) => {
-            console.log("Trade submitted:", trade);
-            setShowAddTrade(false);
+          onSubmit={async (trade: any) => {
+            try {
+              // Get user ID from context
+              const userId = state.user?.uid;
+              
+              if (!userId) {
+                throw new Error("User not authenticated");
+              }
+
+              // Save trade to Firebase
+              const tradeId = await addTrade(userId, trade);
+              
+              // Dispatch ADD_TRADE action to update context
+              dispatch({ 
+                type: 'ADD_TRADE', 
+                payload: { ...trade, id: tradeId, userId } 
+              });
+              
+              setShowAddTrade(false);
+              Alert.alert("Success", "Trade recorded successfully");
+            } catch (error) {
+              console.error("Error saving trade:", error);
+              Alert.alert("Error", "Failed to save trade. Please try again.");
+            }
           }}
         />
       </Modal>
@@ -292,6 +351,13 @@ export default function DashboardScreen() {
 function AddTradeModalAnimated({ visible, onClose, onSubmit }: any) {
   const anim = useRef(new Animated.Value(0)).current;
   const { colors } = useTheme();
+  const { state } = useAppContext(); // Get access to app context
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(''); // State for selected account
+  const [strategies, setStrategies] = useState<Strategy[]>([]); // State for strategies
+  const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null); // State for selected strategy
+  const [checklistItems, setChecklistItems] = useState<any[]>([]); // State for checklist items
+  const [selectedChecklistItems, setSelectedChecklistItems] = useState<string[]>([]); // State for selected checklist items
+  const [confluenceScore, setConfluenceScore] = useState<number | null>(null); // State for confluence score
 
   useEffect(() => {
     if (visible) {
@@ -304,13 +370,95 @@ function AddTradeModalAnimated({ visible, onClose, onSubmit }: any) {
     } else {
       anim.setValue(0);
     }
-  }, [visible]);
+    
+    // Set default account when accounts are available
+    if (state.accounts && state.accounts.length > 0 && !selectedAccountId) {
+      setSelectedAccountId(state.accounts[0].id);
+    }
+    
+    // Load user strategies
+    const loadStrategies = async () => {
+      if (state.user?.uid) {
+        try {
+          const userStrategies = await getUserStrategies(state.user.uid);
+          setStrategies(userStrategies);
+        } catch (error) {
+          console.error("Error loading strategies:", error);
+        }
+      }
+    };
+    
+    loadStrategies();
+  }, [visible, state.accounts, state.user?.uid]);
 
+  // Update checklist items when strategy changes
+  useEffect(() => {
+    if (selectedStrategyId) {
+      const strategy = strategies.find((s) => s.id === selectedStrategyId);
+      setChecklistItems(strategy?.checklist || []);
+    } else {
+      setChecklistItems([]);
+    }
+    setSelectedChecklistItems([]);
+    setConfluenceScore(null);
+  }, [selectedStrategyId, strategies]);
+  
+  // Update confluence score when selected checklist items change
+  useEffect(() => {
+    if (selectedChecklistItems.length > 0 && checklistItems.length > 0) {
+      // Create a map of item IDs to their weights
+      const itemWeights = new Map<string, number>();
+      checklistItems.forEach(item => {
+        itemWeights.set(item.id, item.weight);
+      });
+      
+      // Calculate confluence score using the proper formula
+      const score = calculateConfluenceScore(selectedChecklistItems, itemWeights);
+      setConfluenceScore(parseFloat(score.toFixed(2)));
+    } else {
+      setConfluenceScore(null);
+    }
+  }, [selectedChecklistItems, checklistItems]);
+  
   const translateY = anim.interpolate({
     inputRange: [0, 1],
     outputRange: [40, 0],
   });
   const opacity = anim;
+
+  // Handle account selection
+  const handleAccountSelect = (accountId: string) => {
+    setSelectedAccountId(accountId);
+  };
+  
+  // Handle strategy selection
+  const handleStrategySelect = (strategyId: string) => {
+    setSelectedStrategyId(strategyId);
+  };
+  
+  // Handle checklist item toggle
+  const handleChecklistItemToggle = (itemId: string) => {
+    setSelectedChecklistItems(prev => {
+      if (prev.includes(itemId)) {
+        return prev.filter(id => id !== itemId);
+      } else {
+        return [...prev, itemId];
+      }
+    });
+  };
+
+  // Enhanced submit handler that includes account info
+  const handleSubmitWithAccount = (tradeData: any) => {
+    // Add accountId to trade data
+    const tradeWithAccount = {
+      ...tradeData,
+      accountId: selectedAccountId || undefined,
+      strategyId: selectedStrategyId || undefined,
+      checklist: selectedChecklistItems,
+      confluenceScore: confluenceScore || 0,
+    };
+    onSubmit(tradeWithAccount);
+  };
 
   return (
     <Animated.View
@@ -323,7 +471,20 @@ function AddTradeModalAnimated({ visible, onClose, onSubmit }: any) {
       }}
     >
       <Card>
-        <AddTradeForm onSubmit={onSubmit} onClose={onClose} />
+        <AddTradeForm 
+          onSubmit={handleSubmitWithAccount} 
+          onClose={onClose} 
+          accounts={state.accounts || []}
+          selectedAccountId={selectedAccountId}
+          onAccountSelect={handleAccountSelect}
+          checklistItems={checklistItems}
+          selectedChecklistItems={selectedChecklistItems}
+          onChecklistItemToggle={handleChecklistItemToggle}
+          strategies={strategies}
+          selectedStrategyId={selectedStrategyId}
+          onStrategySelect={handleStrategySelect}
+          confluenceScore={confluenceScore}
+        />
       </Card>
     </Animated.View>
   );
@@ -382,11 +543,12 @@ function DayTradesModalAnimated({ visible, date, trades, onClose }: any) {
         >
           {(() => {
             if (!date) return null;
-            const dateKey = new Date(date).toISOString().split("T")[0];
-            const tradesOnDate = trades.filter(
-              (t: any) =>
-                new Date(t.createdAt).toISOString().split("T")[0] === dateKey
-            );
+            const dateObj = parseDate(date);
+            const dateKey = dateObj ? dateObj.toISOString().split("T")[0] : "";
+            const tradesOnDate = trades.filter((t: any) => {
+              const d = parseDate((t as any).createdAt);
+              return d ? d.toISOString().split("T")[0] === dateKey : false;
+            });
 
             if (tradesOnDate.length === 0) {
               return (

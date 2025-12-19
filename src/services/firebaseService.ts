@@ -32,6 +32,17 @@ import {
   RoutineItem // Add RoutineItem import
 } from "../types";
 
+// Utility function to remove undefined values from an object
+function removeUndefinedFields(obj: any): any {
+  const filteredObj: any = {};
+  Object.keys(obj).forEach(key => {
+    if (obj[key] !== undefined) {
+      filteredObj[key] = obj[key];
+    }
+  });
+  return filteredObj;
+}
+
 // Helper function to check if Firebase is properly initialized
 function isFirebaseInitialized(): boolean {
   try {
@@ -138,7 +149,8 @@ export async function createAccount(
       return null;
     }
 
-    const docRef = await addDoc(collection(db, "accounts"), {
+    // Create account data with all fields including timestamps
+    const accountData = removeUndefinedFields({
       userId,
       name,
       startingBalance,
@@ -146,6 +158,8 @@ export async function createAccount(
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     });
+
+    const docRef = await addDoc(collection(db, "accounts"), accountData);
     return docRef.id;
   } catch (error) {
     console.error("Error creating account:", error);
@@ -164,10 +178,12 @@ export async function updateAccount(
       return;
     }
 
-    await updateDoc(doc(db, "accounts", accountId), {
+    const filteredUpdates = removeUndefinedFields({
       ...updates,
       updatedAt: Timestamp.now(),
     });
+
+    await updateDoc(doc(db, "accounts", accountId), filteredUpdates);
   } catch (error) {
     console.error("Error updating account:", error);
     throw error;
@@ -224,13 +240,15 @@ export async function createStrategy(
   checklist: ChecklistItem[]
 ) {
   try {
-    const docRef = await addDoc(collection(db, "strategies"), {
+    const strategyData = removeUndefinedFields({
       userId,
       name,
       checklist,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     });
+
+    const docRef = await addDoc(collection(db, "strategies"), strategyData);
     return docRef.id;
   } catch (error) {
     console.error("Error creating strategy:", error);
@@ -342,12 +360,14 @@ export async function getOrCreateChecklistTemplate(
         },
       ];
 
-      const docRef = await addDoc(collection(db, "checklist_template"), {
+      const templateData = removeUndefinedFields({
         userId,
         items: defaultItems,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       });
+
+      const docRef = await addDoc(collection(db, "checklist_template"), templateData);
 
       const newDoc = await getDoc(doc(db, "checklist_template", docRef.id));
       const data = newDoc.data();
@@ -357,7 +377,7 @@ export async function getOrCreateChecklistTemplate(
         id: newDoc.id,
         createdAt: data?.createdAt?.toDate() || new Date(),
         updatedAt: data?.updatedAt?.toDate() || new Date(),
-      } as ChecklistTemplate;
+      } as any as ChecklistTemplate;
     } else {
       // Return existing template
       const docData = snapshot.docs[0].data();
@@ -366,7 +386,7 @@ export async function getOrCreateChecklistTemplate(
         id: snapshot.docs[0].id,
         createdAt: docData.createdAt?.toDate() || new Date(),
         updatedAt: docData.updatedAt?.toDate() || new Date(),
-      } as ChecklistTemplate;
+      } as any as ChecklistTemplate;
     }
   } catch (error) {
     console.error("Error getting or creating checklist template:", error);
@@ -382,10 +402,12 @@ export async function updateChecklistTemplate(
     const template = await getDoc(doc(db, "checklist_template", templateId));
     if (!template.exists()) throw new Error("Template not found");
 
-    await updateDoc(doc(db, "checklist_template", templateId), {
+    const updateData = removeUndefinedFields({
       items,
       updatedAt: Timestamp.now(),
     });
+
+    await updateDoc(doc(db, "checklist_template", templateId), updateData);
   } catch (error) {
     console.error("Error updating checklist template:", error);
     throw error;
@@ -401,11 +423,13 @@ export async function addChecklistItem(
     if (!template.exists()) throw new Error("Template not found");
 
     const items = [...(template.data().items || []), { ...item, id: `item-${Date.now()}` }];
-
-    await updateDoc(doc(db, "checklist_template", templateId), {
+    
+    const updateData = removeUndefinedFields({
       items,
       updatedAt: Timestamp.now(),
     });
+
+    await updateDoc(doc(db, "checklist_template", templateId), updateData);
   } catch (error) {
     console.error("Error adding checklist item:", error);
     throw error;
@@ -423,11 +447,13 @@ export async function updateChecklistItem(
     const items = (template.data().items || []).map((i: ChecklistItem) =>
       i.id === item.id ? item : i
     );
-
-    await updateDoc(doc(db, "checklist_template", templateId), {
+    
+    const updateData = removeUndefinedFields({
       items,
       updatedAt: Timestamp.now(),
     });
+
+    await updateDoc(doc(db, "checklist_template", templateId), updateData);
   } catch (error) {
     console.error("Error updating checklist item:", error);
     throw error;
@@ -442,11 +468,13 @@ export async function deleteChecklistItem(templateId: string, itemId: string) {
     const items = (template.data().items || []).filter(
       (i: ChecklistItem) => i.id !== itemId
     );
-
-    await updateDoc(doc(db, "checklist_template", templateId), {
+    
+    const updateData = removeUndefinedFields({
       items,
       updatedAt: Timestamp.now(),
     });
+
+    await updateDoc(doc(db, "checklist_template", templateId), updateData);
   } catch (error) {
     console.error("Error deleting checklist item:", error);
     throw error;
@@ -460,10 +488,12 @@ export async function addPsychologyLog(
   logData: Omit<PsychologyLog, "id">
 ) {
   try {
-    const docRef = await addDoc(collection(db, "psychology_logs"), {
+    const filteredLogData = removeUndefinedFields({
       ...logData,
       userId,
     });
+    
+    const docRef = await addDoc(collection(db, "psychology_logs"), filteredLogData);
     return docRef.id;
   } catch (error) {
     console.error("Error adding psychology log:", error);
@@ -497,12 +527,14 @@ export async function getUserPsychologyLogs(
 
 export async function addTrade(userId: string, tradeData: Omit<Trade, "id">) {
   try {
-    const docRef = await addDoc(collection(db, "trades"), {
+    const filteredTradeData = removeUndefinedFields({
       ...tradeData,
       userId,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     });
+    
+    const docRef = await addDoc(collection(db, "trades"), filteredTradeData);
     return docRef.id;
   } catch (error) {
     console.error("Error adding trade:", error);
@@ -512,10 +544,12 @@ export async function addTrade(userId: string, tradeData: Omit<Trade, "id">) {
 
 export async function updateTrade(tradeId: string, updates: Partial<Trade>) {
   try {
-    await updateDoc(doc(db, "trades", tradeId), {
+    const filteredUpdates = removeUndefinedFields({
       ...updates,
       updatedAt: Timestamp.now(),
     });
+    
+    await updateDoc(doc(db, "trades", tradeId), filteredUpdates);
   } catch (error) {
     console.error("Error updating trade:", error);
     throw error;
@@ -558,7 +592,7 @@ export async function createRoutine(
   schedule: 'weekday' | 'weekend' | 'both' = 'both'
 ) {
   try {
-    const docRef = await addDoc(collection(db, "routines"), {
+    const routineData = removeUndefinedFields({
       userId,
       name,
       items: [],
@@ -567,6 +601,8 @@ export async function createRoutine(
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     });
+    
+    const docRef = await addDoc(collection(db, "routines"), routineData);
     return docRef.id;
   } catch (error) {
     console.error("Error creating routine:", error);
@@ -580,12 +616,19 @@ export async function getRoutines(userId: string): Promise<Routine[]> {
     const snapshot = await getDocs(q);
     return snapshot.docs.map((doc) => {
       const data = doc.data();
+      // Process items to ensure proper date conversion
+      const items = (data.items || []).map((item: any) => ({
+        ...item,
+        completedAt: item.completedAt?.toDate ? item.completedAt.toDate() : item.completedAt || undefined
+      }));
+      
       return {
         ...data,
         id: doc.id,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date(),
-        lastCompleted: data.lastCompleted?.toDate() || undefined,
+        items,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt || new Date(),
+        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt || new Date(),
+        lastCompleted: data.lastCompleted?.toDate ? data.lastCompleted.toDate() : data.lastCompleted || undefined,
       } as Routine;
     });
   } catch (error) {
@@ -599,10 +642,12 @@ export async function updateRoutine(
   updates: Partial<Routine>
 ) {
   try {
-    await updateDoc(doc(db, "routines", routineId), {
+    const filteredUpdates = removeUndefinedFields({
       ...updates,
       updatedAt: Timestamp.now(),
     });
+    
+    await updateDoc(doc(db, "routines", routineId), filteredUpdates);
   } catch (error) {
     console.error("Error updating routine:", error);
     throw error;
@@ -623,15 +668,33 @@ export async function addRoutineItem(
   item: Omit<RoutineItem, 'id'>
 ) {
   try {
-    const newItem = {
+    // Create a new item with proper ID
+    const newItem: any = {
       ...item,
-      id: Date.now().toString(),
+      id: `item-${Date.now()}`,
     };
     
-    await updateDoc(doc(db, "routines", routineId), {
-      items: arrayUnion(newItem),
+    // Convert completedAt to Timestamp if it exists
+    if (newItem.completedAt && newItem.completedAt instanceof Date) {
+      newItem.completedAt = Timestamp.fromDate(newItem.completedAt);
+    }
+    
+    const routineRef = doc(db, "routines", routineId);
+    const routineDoc = await getDoc(routineRef);
+    
+    if (!routineDoc.exists()) {
+      throw new Error("Routine not found");
+    }
+    
+    const routine = routineDoc.data();
+    const updatedItems = [...(routine.items || []), newItem];
+    
+    const updateData = removeUndefinedFields({
+      items: updatedItems,
       updatedAt: Timestamp.now(),
     });
+    
+    await updateDoc(routineRef, updateData);
     
     return newItem.id;
   } catch (error) {
@@ -658,10 +721,23 @@ export async function updateRoutineItem(
       item.id === itemId ? { ...item, ...updates } : item
     );
     
-    await updateDoc(routineRef, {
-      items: updatedItems,
+    // Convert completedAt to Timestamp if it exists
+    const finalUpdatedItems = updatedItems.map((item: any) => {
+      if (item.completedAt && item.completedAt instanceof Date) {
+        return {
+          ...item,
+          completedAt: Timestamp.fromDate(item.completedAt)
+        };
+      }
+      return item;
+    });
+    
+    const updateData = removeUndefinedFields({
+      items: finalUpdatedItems,
       updatedAt: Timestamp.now(),
     });
+    
+    await updateDoc(routineRef, updateData);
   } catch (error) {
     console.error("Error updating routine item:", error);
     throw error;
@@ -678,12 +754,14 @@ export async function deleteRoutineItem(routineId: string, itemId: string) {
     }
     
     const routine = routineDoc.data();
-    const updatedItems = routine.items.filter((item: any) => item.id !== itemId);
+    const updatedItems = (routine.items || []).filter((item: any) => item.id !== itemId);
     
-    await updateDoc(routineRef, {
+    const updateData = removeUndefinedFields({
       items: updatedItems,
       updatedAt: Timestamp.now(),
     });
+    
+    await updateDoc(routineRef, updateData);
   } catch (error) {
     console.error("Error deleting routine item:", error);
     throw error;
@@ -695,11 +773,13 @@ export async function completeRoutine(routineId: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    await updateDoc(doc(db, "routines", routineId), {
+    const updateData = removeUndefinedFields({
       streak: increment(1),
       lastCompleted: Timestamp.fromDate(today),
       updatedAt: Timestamp.now(),
     });
+    
+    await updateDoc(doc(db, "routines", routineId), updateData);
   } catch (error) {
     console.error("Error completing routine:", error);
     throw error;

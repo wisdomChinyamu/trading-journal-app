@@ -11,18 +11,26 @@ import {
 import { useTheme } from "./ThemeProvider";
 import { uploadTradeImage } from "../services/supabaseImageService";
 
+type LabeledScreenshot = { uri: string; label?: string };
+
 type ImageUploaderProps = {
-  screenshots: string[];
+  screenshots: LabeledScreenshot[];
   onAdd: (localUri: string, file?: File) => void;
   onRemove: (uri: string) => void;
+  onUpdateLabel?: (uri: string, label: string) => void;
   maxImages?: number;
+  thumbnailSize?: number;
+  thumbnailMargin?: number;
 };
 
 export default function ImageUploader({
   screenshots,
   onAdd,
   onRemove,
+  onUpdateLabel,
   maxImages = 5,
+  thumbnailSize = 100,
+  thumbnailMargin = 12,
 }: ImageUploaderProps) {
   const { colors } = useTheme();
   const [uploading, setUploading] = useState(false);
@@ -129,28 +137,30 @@ export default function ImageUploader({
         <View style={styles.grid}>
           {screenshots.map((s, index) => (
             <View
-              key={s}
+              key={s.uri}
               style={[
                 styles.imageWrapper,
                 {
                   borderColor: hoveredIndex === index ? colors.highlight : 'transparent',
                   borderWidth: 2,
+                  marginRight: thumbnailMargin || 12,
+                  marginBottom: thumbnailMargin || 12,
                 },
               ]}
               {...Platform.select({
                 web: {
                   onMouseEnter: () => setHoveredIndex(index),
-                  onMouseLeave: () => setHoveredIndex(null)
+                  onMouseLeave: () => setHoveredIndex(null),
                 },
-                default: {}
+                default: {},
               })}
             >
               <Image
-                source={{ uri: s }}
-                style={[styles.thumbnail, { backgroundColor: colors.surface }]}
+                source={{ uri: s.uri }}
+                style={[styles.thumbnail, { width: thumbnailSize, height: thumbnailSize, borderRadius: Math.max(8, Math.floor(thumbnailSize * 0.1)), backgroundColor: colors.surface }]}
                 resizeMode="cover"
               />
-              
+
               {/* Overlay on hover/press */}
               {hoveredIndex === index && (
                 <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
@@ -159,7 +169,20 @@ export default function ImageUploader({
                   </Text>
                 </View>
               )}
-              
+
+              {/* Label chip */}
+              <TouchableOpacity
+                style={[styles.labelChip, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
+                onPress={() => {
+                  const nextLabels = ['Entry','Exit','Pattern','News','Other'];
+                  const current = s.label || 'Other';
+                  const next = nextLabels[(nextLabels.indexOf(current) + 1) % nextLabels.length] || 'Other';
+                  onUpdateLabel && onUpdateLabel(s.uri, next);
+                }}
+              >
+                <Text style={[styles.labelText, { color: colors.text }]}>{s.label || 'Other'}</Text>
+              </TouchableOpacity>
+
               {/* Remove button */}
               <TouchableOpacity
                 style={[
@@ -169,7 +192,7 @@ export default function ImageUploader({
                     shadowColor: colors.lossEnd,
                   },
                 ]}
-                onPress={() => onRemove(s)}
+                onPress={() => onRemove(s.uri)}
                 accessibilityLabel="Remove image"
                 activeOpacity={0.8}
               >
@@ -323,6 +346,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     minHeight: 120,
+  },
+  labelChip: {
+    position: 'absolute',
+    left: 8,
+    bottom: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  labelText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   uploadingContainer: {
     alignItems: "center",

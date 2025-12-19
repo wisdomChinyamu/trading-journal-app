@@ -7,82 +7,168 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
-import { Trade } from '../types';
+import { Trade, ChecklistItem, Strategy, TradingAccount } from '../types';
 import { ThemeMode } from '../theme/theme';
 import ImageUploader from './ImageUploader';
 import { useTheme } from './ThemeProvider';
+import AccountDropdown from './AccountDropdown';
+import { useAppContext } from '../hooks/useAppContext';
+
+type LabeledScreenshot = { uri: string; label?: string };
 
 interface AddTradeFormProps {
   onSubmit: (trade: Omit<Trade, 'id' | 'createdAt' | 'updatedAt'>) => void;
   onClose: () => void;
   theme?: ThemeMode;
+  checklistItems?: ChecklistItem[];
+  onChecklistItemToggle?: (itemId: string) => void;
+  selectedChecklistItems?: string[];
+  strategies?: Strategy[];
+  selectedStrategyId?: string | null;
+  onStrategySelect?: (strategyId: string) => void;
+  confluenceScore?: number | null;
+  accounts?: TradingAccount[]; // Add accounts prop
+  selectedAccountId?: string; // Add selectedAccountId prop
+  onAccountSelect?: (accountId: string) => void; // Add onAccountSelect prop
 }
 
-export default function AddTradeForm({ onSubmit, onClose }: AddTradeFormProps) {
+export default function AddTradeForm({ 
+  onSubmit, 
+  onClose,
+  checklistItems = [],
+  onChecklistItemToggle,
+  selectedChecklistItems = [],
+  strategies = [],
+  selectedStrategyId = null,
+  onStrategySelect,
+  confluenceScore = null,
+  accounts = [], // Add accounts prop
+  selectedAccountId, // Add selectedAccountId prop
+  onAccountSelect // Add onAccountSelect prop
+}: AddTradeFormProps) {
+  const { state } = useAppContext();
   const [pair, setPair] = React.useState('GBPUSD');
   const [direction, setDirection] = React.useState<'Buy' | 'Sell'>('Buy');
   const [session, setSession] = React.useState<'London' | 'NY' | 'Asia'>('London');
   const [entryPrice, setEntryPrice] = React.useState('');
   const [stopLoss, setStopLoss] = React.useState('');
   const [takeProfit, setTakeProfit] = React.useState('');
+  const [riskAmount, setRiskAmount] = React.useState('');
   const [result, setResult] = React.useState<'Win' | 'Loss' | 'Break-even' | undefined>();
   const [emotionalRating, setEmotionalRating] = React.useState(5);
   const [ruleDeviation, setRuleDeviation] = React.useState(false);
   const [notes, setNotes] = React.useState('');
-  const [screenshots, setScreenshots] = React.useState<string[]>([]);
+  const [screenshots, setScreenshots] = React.useState<LabeledScreenshot[]>([]);
 
   const { colors } = useTheme();
 
   const calculateRR = () => {
     if (!entryPrice || !stopLoss || !takeProfit) return 0;
+    
     const entry = parseFloat(entryPrice);
     const sl = parseFloat(stopLoss);
     const tp = parseFloat(takeProfit);
+    
+    // Validate numeric inputs
+    if (isNaN(entry) || isNaN(sl) || isNaN(tp)) return 0;
+    
+    // Calculate risk and reward
     const risk = Math.abs(entry - sl);
     const reward = Math.abs(tp - entry);
-    return risk > 0 ? reward / risk : 0;
+    
+    // Avoid division by zero
+    return risk > 0 ? Number((reward / risk).toFixed(2)) : 0;
   };
 
   const rr = calculateRR();
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!entryPrice || !stopLoss || !takeProfit) {
       Alert.alert('Error', 'Please fill in all price fields');
       return;
     }
 
-    onSubmit({
-      userId: 'current-user',
-      pair,
-      direction,
-      session,
-      entryPrice: parseFloat(entryPrice),
-      stopLoss: parseFloat(stopLoss),
-      takeProfit: parseFloat(takeProfit),
-      result,
-      riskToReward: rr,
-      confluenceScore: 0,
-      grade: 'B',
-      setupType: 'SMC',
-      emotionalRating,
-      ruleDeviation,
-      screenshots,
-      notes,
-    });
+    // Check if user is authenticated
+    if (!state.user) {
+      Alert.alert('Error', 'User not authenticated. Please log in again.');
+      return;
+    }
 
-    onClose();
+    // Validate numeric inputs
+    const entryPriceNum = parseFloat(entryPrice);
+    const stopLossNum = parseFloat(stopLoss);
+    const takeProfitNum = parseFloat(takeProfit);
+    const riskAmountNum = riskAmount ? parseFloat(riskAmount) : undefined;
+
+    if (isNaN(entryPriceNum) || isNaN(stopLossNum) || isNaN(takeProfitNum)) {
+      Alert.alert('Error', 'Please enter valid numbers for price fields');
+      return;
+    }
+
+    if (riskAmountNum !== undefined && isNaN(riskAmountNum)) {
+      Alert.alert('Error', 'Please enter a valid number for risk amount');
+      return;
+    }
+
+    // Calculate grade based on confluence score
+    let grade: 'A+' | 'A' | 'B' | 'C' | 'D' = 'D';
+    if (confluenceScore !== null) {
+      if (confluenceScore >= 90) grade = 'A+';
+      else if (confluenceScore >= 80) grade = 'A';
+      else if (confluenceScore >= 70) grade = 'B';
+      else if (confluenceScore >= 60) grade = 'C';
+    }
+
+    try {
+      const tradeData = {
+        userId: state.user.uid,
+        pair,
+        direction,
+        session,
+        entryPrice: entryPriceNum,
+        stopLoss: stopLossNum,
+        takeProfit: takeProfitNum,
+        result,
+        riskToReward: rr,
+        confluenceScore: confluenceScore || 0,
+        grade,
+        setupType: selectedStrategyId ? (strategies.find(s => s.id === selectedStrategyId)?.name || 'SMC') : 'SMC',
+        emotionalRating,
+        ruleDeviation,
+        screenshots,
+        notes,
+        ...(selectedStrategyId && { strategyId: selectedStrategyId }),
+        ...(selectedChecklistItems.length > 0 && { checklist: selectedChecklistItems }),
+        ...(riskAmountNum !== undefined && { riskAmount: riskAmountNum }),
+        ...(selectedAccountId && { accountId: selectedAccountId }),
+      };
+
+      await onSubmit(tradeData);
+
+      onClose();
+    } catch (error: any) {
+      console.error('Error submitting trade:', error);
+      Alert.alert('Error', error.message || 'Failed to submit trade. Please try again.');
+    }
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={100}
+    >
       <ScrollView 
         style={styles.scrollView} 
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
+        keyboardDismissMode="on-drag"
         contentContainerStyle={styles.scrollContent}
       >
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
           {/* Header */}
           <View style={styles.header}>
             <View>
@@ -109,6 +195,40 @@ export default function AddTradeForm({ onSubmit, onClose }: AddTradeFormProps) {
             </View>
           ) : null}
           
+          {/* Confluence Score Display */}
+          {confluenceScore !== null && (
+            <View style={[styles.confluenceCard, { backgroundColor: colors.neutral }]}>
+              <Text style={[styles.confluenceLabel, { color: colors.subtext }]}>Confluence Score</Text>
+              <Text style={[styles.confluenceValue, { color: colors.highlight }]}>
+                {confluenceScore.toFixed(0)}%
+              </Text>
+              <View style={styles.confluenceIndicator}>
+                <View style={[styles.confluenceBar, { backgroundColor: colors.surface }]}>
+                  <View 
+                    style={[
+                      styles.confluenceFill, 
+                      { 
+                        width: `${confluenceScore}%`,
+                        backgroundColor: confluenceScore >= 80 ? colors.profitEnd : 
+                                       confluenceScore >= 60 ? colors.highlight : 
+                                       confluenceScore >= 40 ? '#ffa500' : colors.lossEnd
+                      }
+                    ]} 
+                  />
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Account Selection - Add this new section */}
+          {accounts.length > 0 && onAccountSelect && (
+            <AccountDropdown 
+              accounts={accounts}
+              selectedAccountId={selectedAccountId || accounts[0]?.id || ''}
+              onSelect={onAccountSelect}
+              onAddAccount={() => {}} // Empty function as placeholder since this isn't implemented in AddTradeForm
+            />
+          )}
           {/* Pair Selection */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Currency Pair</Text>
@@ -173,6 +293,41 @@ export default function AddTradeForm({ onSubmit, onClose }: AddTradeFormProps) {
             </View>
           </View>
 
+          {/* Strategy Selection */}
+          {strategies.length > 0 && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Strategy Template</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.strategyGroup}>
+                  {strategies.map((strategy) => (
+                    <TouchableOpacity
+                      key={strategy.id}
+                      style={[
+                        styles.strategyCard,
+                        selectedStrategyId === strategy.id && styles.strategyCardActive,
+                        { backgroundColor: colors.neutral }
+                      ]}
+                      onPress={() => onStrategySelect && onStrategySelect(strategy.id)}
+                    >
+                      <View style={styles.strategyIcon}>
+                        <Text style={styles.strategyIconText}>📋</Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.strategyName,
+                          selectedStrategyId === strategy.id && { color: colors.highlight },
+                          { color: colors.text }
+                        ]}
+                      >
+                        {strategy.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          )}
+
           {/* Price Inputs */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Price Levels</Text>
@@ -186,7 +341,12 @@ export default function AddTradeForm({ onSubmit, onClose }: AddTradeFormProps) {
                   placeholder="0.00000"
                   placeholderTextColor={colors.subtext}
                   value={entryPrice}
-                  onChangeText={setEntryPrice}
+                  onChangeText={(text) => {
+                    // Allow only numeric input with decimal point
+                    if (text === '' || /^\d*\.?\d*$/.test(text)) {
+                      setEntryPrice(text);
+                    }
+                  }}
                   keyboardType="decimal-pad"
                 />
               </View>
@@ -201,7 +361,12 @@ export default function AddTradeForm({ onSubmit, onClose }: AddTradeFormProps) {
                   placeholder="0.00000"
                   placeholderTextColor={colors.subtext}
                   value={stopLoss}
-                  onChangeText={setStopLoss}
+                  onChangeText={(text) => {
+                    // Allow only numeric input with decimal point
+                    if (text === '' || /^\d*\.?\d*$/.test(text)) {
+                      setStopLoss(text);
+                    }
+                  }}
                   keyboardType="decimal-pad"
                 />
               </View>
@@ -216,7 +381,32 @@ export default function AddTradeForm({ onSubmit, onClose }: AddTradeFormProps) {
                   placeholder="0.00000"
                   placeholderTextColor={colors.subtext}
                   value={takeProfit}
-                  onChangeText={setTakeProfit}
+                  onChangeText={(text) => {
+                    // Allow only numeric input with decimal point
+                    if (text === '' || /^\d*\.?\d*$/.test(text)) {
+                      setTakeProfit(text);
+                    }
+                  }}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+            </View>
+            
+            <View style={styles.priceRow}>
+              <Text style={styles.priceIcon}>💰</Text>
+              <View style={styles.priceInputGroup}>
+                <Text style={[styles.priceLabel, { color: colors.subtext }]}>Risk Amount</Text>
+                <TextInput
+                  style={[styles.priceInput, { backgroundColor: colors.neutral, color: colors.text }]}
+                  placeholder="0.00"
+                  placeholderTextColor={colors.subtext}
+                  value={riskAmount}
+                  onChangeText={(text) => {
+                    // Allow only numeric input with decimal point
+                    if (text === '' || /^\d*\.?\d*$/.test(text)) {
+                      setRiskAmount(text);
+                    }
+                  }}
                   keyboardType="decimal-pad"
                 />
               </View>
@@ -249,6 +439,38 @@ export default function AddTradeForm({ onSubmit, onClose }: AddTradeFormProps) {
               ))}
             </View>
           </View>
+
+          {/* Checklist Items */}
+          {checklistItems.length > 0 && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Checklist</Text>
+              <View style={styles.checklistContainer}>
+                {checklistItems.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.checklistItem}
+                    onPress={() => onChecklistItemToggle && onChecklistItemToggle(item.id)}
+                  >
+                    <View style={[
+                      styles.checklistCheckbox,
+                      selectedChecklistItems.includes(item.id) && styles.checked,
+                      { borderColor: colors.neutral }
+                    ]}>
+                      {selectedChecklistItems.includes(item.id) && (
+                        <Text style={styles.checklistCheckmark}>✓</Text>
+                      )}
+                    </View>
+                    <View style={styles.checklistItemText}>
+                      <Text style={[styles.checklistItemLabel, { color: colors.text }]}>{item.label}</Text>
+                      <Text style={[styles.checklistItemDescription, { color: colors.subtext }]} numberOfLines={1}>
+                        {item.description}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
 
           {/* Emotional Rating */}
           <View style={styles.section}>
@@ -332,8 +554,9 @@ export default function AddTradeForm({ onSubmit, onClose }: AddTradeFormProps) {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Chart Screenshots</Text>
             <ImageUploader
               screenshots={screenshots}
-              onAdd={(uri: string) => setScreenshots((s) => [...s, uri])}
-              onRemove={(uri: string) => setScreenshots((s) => s.filter((x) => x !== uri))}
+              onAdd={(uri: string) => setScreenshots((s) => [...s, { uri, label: 'Other' }])}
+              onRemove={(uri: string) => setScreenshots((s) => s.filter((x) => x.uri !== uri))}
+              onUpdateLabel={(uri: string, label: string) => setScreenshots((s) => s.map(x => x.uri === uri ? { ...x, label } : x))}
             />
           </View>
 
@@ -355,22 +578,24 @@ export default function AddTradeForm({ onSubmit, onClose }: AddTradeFormProps) {
           </View>
         </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
+    paddingVertical: 16,
+    justifyContent: 'flex-start',
+  },
+  container: {
+    flex: 1,
   },
   card: {
-    margin: 16,
+    marginHorizontal: 16,
     borderRadius: 16,
     padding: 20,
   },
@@ -429,6 +654,36 @@ const styles = StyleSheet.create({
   rrBadgeText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  confluenceCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+  confluenceLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  confluenceValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  confluenceIndicator: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  confluenceBar: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  confluenceFill: {
+    height: '100%',
+    borderRadius: 3,
   },
   section: {
     marginBottom: 20,
@@ -498,6 +753,37 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  strategyGroup: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  strategyCard: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    minWidth: 120,
+    alignItems: 'center',
+    gap: 8,
+  },
+  strategyCardActive: {
+    borderWidth: 2,
+  },
+  strategyIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#00d4d420',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  strategyIconText: {
+    fontSize: 16,
+  },
+  strategyName: {
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -544,6 +830,46 @@ const styles = StyleSheet.create({
   resultText: {
     fontSize: 13,
     fontWeight: '700',
+  },
+  checklistContainer: {
+    gap: 8,
+  },
+  checklistItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#1a1a1a',
+  },
+  checklistCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  checked: {
+    backgroundColor: '#00d4d4',
+    borderColor: '#00d4d4',
+  },
+  checklistCheckmark: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  checklistItemText: {
+    flex: 1,
+  },
+  checklistItemLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  checklistItemDescription: {
+    fontSize: 12,
+    lineHeight: 16,
   },
   emotionHeader: {
     flexDirection: 'row',

@@ -1,5 +1,23 @@
 import { TradeDirection, TradeGrade } from '../types';
 
+const toDate = (value: any): Date | null => {
+  if (!value && value !== 0) return null;
+  if (typeof value?.toDate === 'function') {
+    try {
+      const d = value.toDate();
+      return isNaN(d.getTime()) ? null : d;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value === 'number') {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+};
+
 /**
  * Calculate Risk to Reward ratio
  * For Buy: (TP - Entry) / (Entry - SL)
@@ -143,21 +161,23 @@ export function generateEquityCurve(
   }>,
   initialCapital: number = 10000
 ): Array<{ date: Date; value: number }> {
-  const sortedTrades = [...trades].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  );
+  const withDates = trades
+    .map((t) => ({ t, date: toDate((t as any).createdAt) }))
+    .filter((x) => x.date !== null) as { t: any; date: Date }[];
+
+  const sortedTrades = [...withDates].sort((a, b) => a.date.getTime() - b.date.getTime());
 
   const curve: Array<{ date: Date; value: number }> = [];
   let runningBalance = initialCapital;
 
-  sortedTrades.forEach((trade) => {
+  sortedTrades.forEach(({ t: trade, date }) => {
     if (!trade.result || !trade.actualExit) return;
 
     const pnlAmount = trade.actualExit - trade.entryPrice;
     runningBalance += pnlAmount;
 
     curve.push({
-      date: new Date(trade.createdAt),
+      date,
       value: runningBalance,
     });
   });

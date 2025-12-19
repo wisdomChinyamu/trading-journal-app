@@ -17,10 +17,20 @@ export default function EquityCurveChart({ trades }: EquityCurveChartProps) {
   const equityPoints: { date: string; value: number }[] = [];
 
   trades.forEach((trade) => {
-    if (trade.result === "Win") {
-      equity += trade.riskToReward;
-    } else if (trade.result === "Loss") {
-      equity -= 1;
+    if (trade.riskAmount) {
+      // Use actual monetary values if riskAmount is available
+      if (trade.result === "Win") {
+        equity += trade.riskAmount * trade.riskToReward;
+      } else if (trade.result === "Loss") {
+        equity -= trade.riskAmount;
+      }
+    } else {
+      // Fall back to R:R ratio based calculation
+      if (trade.result === "Win") {
+        equity += trade.riskToReward;
+      } else if (trade.result === "Loss") {
+        equity -= 1;
+      }
     }
     equityPoints.push({
       date: new Date(trade.createdAt).toLocaleDateString(),

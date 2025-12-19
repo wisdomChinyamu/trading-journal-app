@@ -31,6 +31,27 @@ export default function RoutineScreen() {
   const [showNewRoutineForm, setShowNewRoutineForm] = useState(false);
   const [newItemText, setNewItemText] = useState('');
   const [selectedSchedule, setSelectedSchedule] = useState<'weekday' | 'weekend' | 'both'>('both');
+  const [loading, setLoading] = useState(false);
+
+  // Load routines when component mounts
+  useEffect(() => {
+    const loadRoutines = async () => {
+      if (state.user?.uid) {
+        try {
+          setLoading(true);
+          const routines = await getRoutines(state.user.uid);
+          dispatch({ type: 'SET_ROUTINES', payload: routines });
+        } catch (error) {
+          console.error('Error loading routines:', error);
+          Alert.alert('Error', 'Failed to load routines: ' + (error as Error).message);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadRoutines();
+  }, [state.user?.uid, dispatch]);
 
   // Filter routines based on current day (weekday/weekend)
   const getFilteredRoutines = () => {
@@ -114,6 +135,7 @@ export default function RoutineScreen() {
         throw new Error('User not authenticated');
       }
 
+      setLoading(true);
       const routineId = await createRoutine(state.user.uid, newRoutineName, selectedSchedule);
       
       // Refresh routines
@@ -132,7 +154,9 @@ export default function RoutineScreen() {
       Alert.alert('Success', 'Routine created successfully');
     } catch (error) {
       console.error('Error creating routine:', error);
-      Alert.alert('Error', 'Failed to create routine');
+      Alert.alert('Error', 'Failed to create routine: ' + (error as Error).message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -147,6 +171,7 @@ export default function RoutineScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              setLoading(true);
               await deleteRoutine(routineId);
               
               // Refresh routines
@@ -163,7 +188,9 @@ export default function RoutineScreen() {
               Alert.alert('Success', 'Routine deleted successfully');
             } catch (error) {
               console.error('Error deleting routine:', error);
-              Alert.alert('Error', 'Failed to delete routine');
+              Alert.alert('Error', 'Failed to delete routine: ' + (error as Error).message);
+            } finally {
+              setLoading(false);
             }
           }
         }
@@ -183,6 +210,7 @@ export default function RoutineScreen() {
     }
 
     try {
+      setLoading(true);
       await addRoutineItem(activeRoutine.id, {
         label: newItemText,
         category: 'Optional',
@@ -205,7 +233,9 @@ export default function RoutineScreen() {
       setNewItemText('');
     } catch (error) {
       console.error('Error adding routine item:', error);
-      Alert.alert('Error', 'Failed to add item');
+      Alert.alert('Error', 'Failed to add item: ' + (error as Error).message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -213,6 +243,7 @@ export default function RoutineScreen() {
     if (!activeRoutine) return;
 
     try {
+      setLoading(true);
       const item = activeRoutine.items.find(i => i.id === itemId);
       if (!item) return;
 
@@ -234,7 +265,9 @@ export default function RoutineScreen() {
       }
     } catch (error) {
       console.error('Error toggling routine item:', error);
-      Alert.alert('Error', 'Failed to update item');
+      Alert.alert('Error', 'Failed to update item: ' + (error as Error).message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -242,6 +275,7 @@ export default function RoutineScreen() {
     if (!activeRoutine) return;
 
     try {
+      setLoading(true);
       await completeRoutine(activeRoutine.id);
       
       // Refresh routines
@@ -259,7 +293,9 @@ export default function RoutineScreen() {
       Alert.alert('Success', 'Routine completed! Streak increased.');
     } catch (error) {
       console.error('Error completing routine:', error);
-      Alert.alert('Error', 'Failed to complete routine');
+      Alert.alert('Error', 'Failed to complete routine: ' + (error as Error).message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -282,6 +318,12 @@ export default function RoutineScreen() {
         </View>
       </View>
 
+      {loading && (
+        <View style={[styles.loadingOverlay, { backgroundColor: `${colors.background}CC` }]}>
+          <Text style={[styles.loadingText, { color: colors.text }]}>Saving...</Text>
+        </View>
+      )}
+
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -300,6 +342,7 @@ export default function RoutineScreen() {
             <TouchableOpacity 
               style={[styles.completeButton, { backgroundColor: colors.highlight }]}
               onPress={handleCompleteRoutine}
+              disabled={loading}
             >
               <Text style={styles.completeButtonText}>Complete Routine</Text>
             </TouchableOpacity>
@@ -323,6 +366,7 @@ export default function RoutineScreen() {
                   }
                 ]}
                 onPress={() => setActiveRoutine(routine)}
+                disabled={loading}
               >
                 <Text 
                   style={[
@@ -346,6 +390,7 @@ export default function RoutineScreen() {
             <TouchableOpacity
               style={[styles.newRoutineButton, { backgroundColor: colors.surface }]}
               onPress={() => setShowNewRoutineForm(true)}
+              disabled={loading}
             >
               <Text style={[styles.newRoutineText, { color: colors.text }]}>+ New Routine</Text>
             </TouchableOpacity>
@@ -366,6 +411,7 @@ export default function RoutineScreen() {
                   placeholderTextColor={colors.subtext}
                   value={newRoutineName}
                   onChangeText={setNewRoutineName}
+                  editable={!loading}
                 />
               </View>
             </View>
@@ -385,6 +431,7 @@ export default function RoutineScreen() {
                       }
                     ]}
                     onPress={() => setSelectedSchedule(schedule)}
+                    disabled={loading}
                   >
                     <Text 
                       style={[
@@ -406,12 +453,14 @@ export default function RoutineScreen() {
                   setShowNewRoutineForm(false);
                   setNewRoutineName('');
                 }}
+                disabled={loading}
               >
                 <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.createButton, { backgroundColor: colors.highlight }]}
                 onPress={handleCreateRoutine}
+                disabled={loading}
               >
                 <Text style={styles.createButtonText}>Create Routine</Text>
               </TouchableOpacity>
@@ -433,6 +482,7 @@ export default function RoutineScreen() {
               <TouchableOpacity 
                 style={styles.deleteButton}
                 onPress={() => handleDeleteRoutine(activeRoutine.id)}
+                disabled={loading}
               >
                 <Text style={styles.deleteButtonText}>🗑️</Text>
               </TouchableOpacity>
@@ -463,10 +513,12 @@ export default function RoutineScreen() {
                 placeholderTextColor={colors.subtext}
                 value={newItemText}
                 onChangeText={setNewItemText}
+                editable={!loading}
               />
               <TouchableOpacity 
                 style={[styles.addButton, { backgroundColor: colors.highlight }]}
                 onPress={handleAddItem}
+                disabled={loading}
               >
                 <Text style={styles.addButtonText}>Add</Text>
               </TouchableOpacity>
@@ -490,6 +542,7 @@ export default function RoutineScreen() {
                       { backgroundColor: colors.surface }
                     ]}
                     onPress={() => handleToggleItem(item.id)}
+                    disabled={loading}
                   >
                     <View style={[
                       styles.checkbox,
@@ -508,7 +561,7 @@ export default function RoutineScreen() {
                       </Text>
                       {item.completed && item.completedAt && (
                         <Text style={[styles.completedAt, { color: colors.subtext }]}>
-                          Completed {item.completedAt.toLocaleDateString()}
+                          Completed {new Date(item.completedAt).toLocaleDateString()}
                         </Text>
                       )}
                     </View>
@@ -527,6 +580,7 @@ export default function RoutineScreen() {
             <TouchableOpacity
               style={[styles.createFirstButton, { backgroundColor: colors.highlight }]}
               onPress={() => setShowNewRoutineForm(true)}
+              disabled={loading}
             >
               <Text style={styles.createFirstButtonText}>Create Your First Routine</Text>
             </TouchableOpacity>
@@ -565,6 +619,20 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   streakBanner: {
     flexDirection: 'row',

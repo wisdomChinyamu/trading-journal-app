@@ -1,13 +1,17 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, ScrollView } from "react-native";
-import { TradingAccount } from "./AccountDropdown";
+import { TradingAccount } from "../types";
 
 interface AccountDetailsPanelProps {
   account: TradingAccount;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }
 
 export default function AccountDetailsPanel({
   account,
+  onEdit,
+  onDelete,
 }: AccountDetailsPanelProps) {
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [transactionType, setTransactionType] = useState<'deposit' | 'withdrawal'>('deposit');
@@ -116,6 +120,24 @@ export default function AccountDetailsPanel({
             <Text style={styles.actionText}>Withdraw</Text>
           </TouchableOpacity>
         </View>
+        
+        {/* Edit/Delete Actions */}
+        {(onEdit || onDelete) && (
+          <View style={[styles.accountActions, {justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#333', paddingTop: 16, marginTop: 16}]}>
+            {onEdit && (
+              <TouchableOpacity style={[styles.accountActionButton, {padding: 8, backgroundColor: '#2a2a2a'}]} onPress={onEdit}>
+                <Text style={[styles.editIcon, {marginRight: 6}]}>✏️</Text>
+                <Text style={[styles.accountActionText, {fontWeight: '600'}]}>Edit</Text>
+              </TouchableOpacity>
+            )}
+            {onDelete && (
+              <TouchableOpacity style={[styles.accountActionButton, {padding: 8, backgroundColor: '#2a2a2a'}]} onPress={onDelete}>
+                <Text style={[styles.deleteIcon, {marginRight: 6}]}>🗑️</Text>
+                <Text style={[styles.accountActionText, {fontWeight: '600'}]}>Delete</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         {/* Recent Activity Placeholder */}
         <View style={styles.activitySection}>
@@ -172,13 +194,15 @@ export default function AccountDetailsPanel({
               </View>
 
               <View style={styles.modalActions}>
-                <TouchableOpacity
+                <TouchableOpacity 
                   style={[styles.modalButton, styles.confirmButton]}
                   onPress={handleTransaction}
                 >
-                  <Text style={styles.confirmButtonText}>Confirm {transactionType}</Text>
+                  <Text style={styles.confirmButtonText}>
+                    {transactionType === 'deposit' ? 'Deposit Funds' : 'Withdraw Funds'}
+                  </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
+                <TouchableOpacity 
                   style={[styles.modalButton, styles.cancelButton]}
                   onPress={() => setShowTransactionModal(false)}
                 >
@@ -346,8 +370,36 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   emptyText: {
-    fontSize: 13,
     color: '#666',
+    fontSize: 14,
+  },
+  accountActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+    paddingTop: 16,
+    marginTop: 16,
+  },
+  accountActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#2a2a2a',
+  },
+  editIcon: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  deleteIcon: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  accountActionText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,

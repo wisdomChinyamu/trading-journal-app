@@ -1,5 +1,5 @@
 import React, { createContext, useReducer, ReactNode } from 'react';
-import { User, Trade, ChecklistTemplate, PsychologyLog, ChecklistItem } from '../types';
+import { User, Trade, ChecklistTemplate, PsychologyLog, ChecklistItem, Routine, TradingAccount } from '../types';
 
 export interface AppState {
   user: User | null;
@@ -8,6 +8,8 @@ export interface AppState {
   psychologyLogs: PsychologyLog[];
   isLoading: boolean;
   error: string | null;
+  routines: Routine[]; // Add routines property
+  accounts: TradingAccount[]; // Add accounts property
 }
 
 export type AppAction =
@@ -23,7 +25,9 @@ export type AppAction =
   | { type: 'SET_PSYCHOLOGY_LOGS'; payload: PsychologyLog[] }
   | { type: 'ADD_PSYCHOLOGY_LOG'; payload: PsychologyLog }
   | { type: 'SET_LOADING'; payload: boolean }
-  | { type: 'SET_ERROR'; payload: string | null };
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_ROUTINES'; payload: Routine[] } // Add SET_ROUTINES action
+  | { type: 'SET_ACCOUNTS'; payload: TradingAccount[] }; // Add SET_ACCOUNTS action
 
 const initialState: AppState = {
   user: null,
@@ -32,6 +36,8 @@ const initialState: AppState = {
   psychologyLogs: [],
   isLoading: false,
   error: null,
+  routines: [], // Initialize routines
+  accounts: [], // Initialize accounts
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -93,6 +99,10 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, isLoading: action.payload };
     case 'SET_ERROR':
       return { ...state, error: action.payload };
+    case 'SET_ROUTINES': // Handle SET_ROUTINES action
+      return { ...state, routines: action.payload };
+    case 'SET_ACCOUNTS': // Handle SET_ACCOUNTS action
+      return { ...state, accounts: action.payload };
     default:
       return state;
   }

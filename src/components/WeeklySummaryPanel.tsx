@@ -28,6 +28,23 @@ export default function WeeklySummaryPanel({
   trades,
 }: WeeklySummaryPanelProps) {
   const { colors } = useTheme();
+  const toDate = (value: any): Date | null => {
+    if (!value && value !== 0) return null;
+    if (typeof value?.toDate === 'function') {
+      try {
+        const d = value.toDate();
+        return isNaN(d.getTime()) ? null : d;
+      } catch {
+        return null;
+      }
+    }
+    if (typeof value === 'number') {
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  };
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState({ year: now.getFullYear(), month: now.getMonth() });
   const { year, month } = selectedMonth;
@@ -36,7 +53,8 @@ export default function WeeklySummaryPanel({
   // Group trades by week
   const weeklyStats = weekRanges.map((range, idx) => {
     const tradesInWeek = trades.filter((t) => {
-      const d = new Date(t.createdAt);
+      const d = toDate((t as any).createdAt);
+      if (!d) return false;
       return d >= range.start && d <= range.end;
     });
     
@@ -46,8 +64,10 @@ export default function WeeklySummaryPanel({
     
     // Calculate PnL based on result field
     const totalPnL = tradesInWeek.reduce((sum, t) => {
-      if (t.result === 'Win') return sum + (t.riskToReward || 1);
-      if (t.result === 'Loss') return sum - 1;
+      if (t.riskAmount && t.result === 'Win') return sum + (t.riskAmount * (t.riskToReward || 1));
+      if (t.riskAmount && t.result === 'Loss') return sum - t.riskAmount;
+      if (!t.riskAmount && t.result === 'Win') return sum + (t.riskToReward || 1);
+      if (!t.riskAmount && t.result === 'Loss') return sum - 1;
       return sum;
     }, 0);
     
