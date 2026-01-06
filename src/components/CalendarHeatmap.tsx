@@ -52,12 +52,16 @@ export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
+  const localDateKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate()
+  ).padStart(2, '0')}`;
+
   const tradesByDate = useMemo(() => {
     const grouped: Record<string, Trade[]> = {};
     trades.forEach((trade) => {
-      const d = toDate((trade as any).createdAt);
+      const d = toDate((trade as any).tradeTime) || toDate((trade as any).createdAt);
       if (!d) return;
-      const dateKey = d.toISOString().split('T')[0];
+      const dateKey = localDateKey(d);
       if (!grouped[dateKey]) grouped[dateKey] = [];
       grouped[dateKey].push(trade);
     });
@@ -218,8 +222,8 @@ export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: 
     const totalGapPx = gapPx * gapsPerRow;
     if (containerWidth && containerWidth > 0) {
       const percent = ((containerWidth - totalGapPx) / containerWidth) / 7 * 100;
-      // reduce slightly to leave breathing room
-      return `${Math.max(12, percent - 0.4).toFixed(4)}%`;
+      // reduce cells slightly (approx 1.5%) to give extra breathing room
+      return `${Math.max(11, percent - 1.5).toFixed(4)}%`;
     }
     return '13.9%';
   })();
@@ -272,9 +276,15 @@ export default function CalendarHeatmap({ trades, onDayPress, theme = 'dark' }: 
         {/* Day Headers */}
       <View style={styles.dayHeaderRow}>
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
-          <Text key={`${day}-${idx}`} style={[styles.dayLabel, { color: colors.subtext, width: (cellPercent as any) }]}>
-            {day}
-          </Text>
+          <Text
+                key={`${day}-${idx}`}
+                style={[
+                  styles.dayLabel,
+                  { color: colors.subtext, width: (cellPercent as any), marginRight: 4 },
+                ]}
+              >
+                {day}
+              </Text>
         ))}
       </View>
 
@@ -469,7 +479,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: 'rgba(0, 212, 212, 0.2)',
-    zIndex: 50,
+    zIndex: 20,
   },
   dayLabel: {
     width: '14.28%',

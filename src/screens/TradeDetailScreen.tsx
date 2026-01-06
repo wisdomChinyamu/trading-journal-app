@@ -1091,14 +1091,14 @@ const styles = StyleSheet.create({
   },
   screenshotImageWrapper: {
     width: 160,
-    height: 110,
+    height: 140,
     borderRadius: 10,
-    overflow: "hidden",
+    overflow: "visible",
     marginRight: 12,
   },
   screenshotImage: {
     width: "100%",
-    height: "100%",
+    height: 110,
   },
   screenshotPlaceholder: {
     backgroundColor: "#1a1a1a",

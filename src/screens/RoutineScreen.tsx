@@ -320,13 +320,22 @@ export default function RoutineScreen() {
       const item = activeRoutine.items.find((i) => i.id === itemId);
       if (!item) return;
 
-      // Update the item completion status
+      // Optimistically update local UI to avoid flicker/race where server state
+      // can overwrite recent toggles when re-fetching.
+      const optimisticItems = activeRoutine.items.map((it) =>
+        it.id === itemId
+          ? { ...it, completed: !it.completed, completedAt: !it.completed ? new Date() : null }
+          : it
+      );
+      setActiveRoutine({ ...(activeRoutine as any), items: optimisticItems });
+
+      // Persist change
       await updateRoutineItem(activeRoutine.id, itemId, {
         completed: !item.completed,
         completedAt: !item.completed ? new Date() : null,
       });
 
-      // Refresh routines
+      // Refresh routines and reconcile authoritative server state
       if (state.user?.uid) {
         const routines = await getRoutines(state.user.uid);
         dispatch({ type: "SET_ROUTINES", payload: routines });
