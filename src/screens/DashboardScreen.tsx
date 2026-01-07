@@ -389,6 +389,18 @@ export default function DashboardScreen() {
               />
             </View>
 
+            {/* Small-screen Weekly Summary directly below calendar */}
+            {!isLargeScreen && (
+              <View
+                style={[
+                  styles.chartCard,
+                  { backgroundColor: colors.surface, marginTop: 8 },
+                ]}
+              >
+                <WeeklySummaryPanelSmall trades={filteredTrades} />
+              </View>
+            )}
+
             {/* Enhanced Grade Distribution */}
             <View
               style={[styles.chartCard, { backgroundColor: colors.surface }]}
@@ -480,16 +492,7 @@ export default function DashboardScreen() {
           )}
         </View>
 
-        {!isLargeScreen && (
-          <View style={[styles.chartCard, { backgroundColor: colors.surface }]}>
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ padding: 8 }}
-            >
-              <WeeklySummaryPanelSmall trades={filteredTrades} />
-            </ScrollView>
-          </View>
-        )}
+        {/* small-screen weekly panel has been moved above into the left column directly under the calendar */}
 
         {/* Account selector modal (triggered from header) */}
         <Modal

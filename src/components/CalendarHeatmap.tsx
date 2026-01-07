@@ -396,13 +396,9 @@ export default function CalendarHeatmap({
                         day && onDayPress?.(new Date(year, month, day))
                       }
                       // @ts-ignore
-                      onMouseEnter={() =>
-                        day && handleMouseEnter(day, dayKey, defaultWidth)
-                      }
+                      onMouseEnter={() => day && handleMouseEnter(day, dayKey)}
                       // @ts-ignore
-                      onMouseLeave={() =>
-                        day && handleMouseLeave(dayKey, defaultWidth)
-                      }
+                      onMouseLeave={() => day && handleMouseLeave(dayKey)}
                       disabled={!day}
                     >
                       {day && (
