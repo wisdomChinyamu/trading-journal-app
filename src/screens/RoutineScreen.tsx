@@ -412,9 +412,6 @@ export default function RoutineScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={[styles.title, { color: colors.text }]}>
-            Trading Routines
-          </Text>
           <Text style={[styles.subtitle, { color: colors.subtext }]}>
             Build discipline with daily checklists
           </Text>
