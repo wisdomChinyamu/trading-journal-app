@@ -21,6 +21,7 @@ import {
   updateStrategy,
   deleteStrategy,
 } from "../services/firebaseService";
+import { createUserProfile } from "../services/firebaseService";
 import { logout } from "../services/firebaseService";
 import ConfirmModal from "../components/ConfirmModal";
 
@@ -40,6 +41,18 @@ export default function SettingsScreen() {
     null
   );
   const [confirmVisible, setConfirmVisible] = useState(false);
+  const [firstName, setFirstName] = useState<string>(
+    appContextState.user?.firstName || ""
+  );
+  const [lastName, setLastName] = useState<string>(
+    appContextState.user?.lastName || ""
+  );
+  const [username, setUsername] = useState<string>(
+    appContextState.user?.username || ""
+  );
+  const [displayPreference, setDisplayPreference] = useState<
+    "firstName" | "username"
+  >(appContextState.user?.firstName ? "firstName" : "username");
 
   const toggleMode = () => {
     setMode(mode === "dark" ? "light" : "dark");
@@ -57,6 +70,15 @@ export default function SettingsScreen() {
         .finally(() => setLoading(false));
     }
   }, [userId]);
+
+  useEffect(() => {
+    setFirstName(appContextState.user?.firstName || "");
+    setLastName(appContextState.user?.lastName || "");
+    setUsername(appContextState.user?.username || "");
+    setDisplayPreference(
+      appContextState.user?.firstName ? "firstName" : "username"
+    );
+  }, [appContextState.user]);
 
   const handleAddItem = (item: Omit<ChecklistItem, "id" | "createdAt">) => {
     dispatch({
@@ -135,6 +157,162 @@ export default function SettingsScreen() {
       </View>
 
       {/* Strategy Management Section */}
+      {/* Profile Section */}
+      <View style={[styles.section, { backgroundColor: colors.card }]}>
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              👤 Profile
+            </Text>
+            <Text
+              style={[styles.sectionDescription, { color: colors.subtext }]}
+            >
+              Edit your name and username
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ gap: 10 }}>
+          <TextInput
+            value={firstName}
+            onChangeText={setFirstName}
+            placeholder="First name"
+            placeholderTextColor={colors.subtext}
+            style={[
+              styles.input,
+              { backgroundColor: colors.surface, color: colors.text },
+            ]}
+          />
+          <TextInput
+            value={lastName}
+            onChangeText={setLastName}
+            placeholder="Last name"
+            placeholderTextColor={colors.subtext}
+            style={[
+              styles.input,
+              { backgroundColor: colors.surface, color: colors.text },
+            ]}
+          />
+          <TextInput
+            value={username}
+            onChangeText={setUsername}
+            placeholder="Username"
+            placeholderTextColor={colors.subtext}
+            style={[
+              styles.input,
+              { backgroundColor: colors.surface, color: colors.text },
+            ]}
+          />
+
+          <View>
+            <Text
+              style={[
+                styles.sectionDescription,
+                { color: colors.subtext, marginBottom: 8 },
+              ]}
+            >
+              Display name on Dashboard
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TouchableOpacity
+                onPress={() => setDisplayPreference("firstName")}
+                style={[
+                  styles.scaleOption,
+                  displayPreference === "firstName" && styles.scaleOptionActive,
+                  {
+                    backgroundColor: colors.surface,
+                    paddingVertical: 10,
+                    flex: 1,
+                  },
+                ]}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.scaleOptionText,
+                    {
+                      color:
+                        displayPreference === "firstName"
+                          ? colors.highlight
+                          : colors.text,
+                    },
+                  ]}
+                >
+                  First name
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setDisplayPreference("username")}
+                style={[
+                  styles.scaleOption,
+                  displayPreference === "username" && styles.scaleOptionActive,
+                  {
+                    backgroundColor: colors.surface,
+                    paddingVertical: 10,
+                    flex: 1,
+                  },
+                ]}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.scaleOptionText,
+                    {
+                      color:
+                        displayPreference === "username"
+                          ? colors.highlight
+                          : colors.text,
+                    },
+                  ]}
+                >
+                  Username
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.createButton,
+              { alignSelf: "flex-start", backgroundColor: colors.highlight },
+            ]}
+            onPress={async () => {
+              setLoading(true);
+              try {
+                const uid = appContextState.user?.uid || userId;
+                if (!uid) throw new Error("No user id");
+                await createUserProfile(uid, {
+                  firstName: firstName || undefined,
+                  lastName: lastName || undefined,
+                  username: username || undefined,
+                });
+                // Update local context user
+                dispatch({
+                  type: "SET_USER",
+                  payload: {
+                    ...(appContextState.user || {}),
+                    firstName: firstName || undefined,
+                    lastName: lastName || undefined,
+                    username: username || undefined,
+                  },
+                });
+              } catch (e) {
+                console.error("Failed to save profile", e);
+                Alert.alert("Error", "Failed to save profile");
+              } finally {
+                setLoading(false);
+              }
+            }}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[styles.createButtonText, { color: colors.background }]}
+            >
+              Save Profile
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
       <View style={[styles.section, { backgroundColor: colors.card }]}>
         <View style={styles.sectionHeader}>
           <View>
