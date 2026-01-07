@@ -1,7 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { View, ActivityIndicator, Text, StyleSheet, Animated } from "react-native";
+import {
+  View,
+  ActivityIndicator,
+  Text,
+  StyleSheet,
+  Animated,
+} from "react-native";
 import { auth } from "../config/firebase";
-import { observeAuthState, getUserAccounts, getUserTrades } from "../services/firebaseService";
+import {
+  observeAuthState,
+  getUserAccounts,
+  getUserTrades,
+  getUserProfile,
+} from "../services/firebaseService";
 import { TabNavigator } from "../navigation/TabNavigator";
 import LoginScreen from "./LoginScreen";
 import SignUpScreen from "./SignUpScreen";
@@ -35,39 +46,62 @@ export default function AuthNavigator() {
     const unsubscribe = observeAuthState((currentUser) => {
       setUser(currentUser);
       setLoading(false);
-      
+
       // Set user in AppContext
       if (currentUser) {
-        dispatch({
-          type: 'SET_USER',
-          payload: {
-            uid: currentUser.uid,
-            email: currentUser.email,
-            username: currentUser.email?.split('@')[0] || 'Trader',
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            createdAt: new Date(),
+        // Try to load profile document from Firestore and merge with auth
+        (async () => {
+          try {
+            const profile = await getUserProfile(currentUser.uid);
+            const payload = {
+              uid: currentUser.uid,
+              email: currentUser.email,
+              username:
+                profile?.username ||
+                currentUser.email?.split("@")[0] ||
+                "Trader",
+              firstName: profile?.firstName,
+              lastName: profile?.lastName,
+              timezone:
+                profile?.timezone ||
+                Intl.DateTimeFormat().resolvedOptions().timeZone,
+              displayPreference: profile?.displayPreference,
+              createdAt: profile?.createdAt || new Date(),
+            } as any;
+            dispatch({ type: "SET_USER", payload });
+          } catch (e) {
+            dispatch({
+              type: "SET_USER",
+              payload: {
+                uid: currentUser.uid,
+                email: currentUser.email,
+                username: currentUser.email?.split("@")[0] || "Trader",
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                createdAt: new Date(),
+              },
+            });
           }
-        });
+        })();
         // Load user's accounts and trades into context
         (async () => {
           try {
             const accounts = await getUserAccounts(currentUser.uid);
-            dispatch({ type: 'SET_ACCOUNTS', payload: accounts });
+            dispatch({ type: "SET_ACCOUNTS", payload: accounts });
           } catch (e) {
-            console.error('Failed to load accounts on auth state change', e);
+            console.error("Failed to load accounts on auth state change", e);
           }
 
           try {
             const trades = await getUserTrades(currentUser.uid);
-            dispatch({ type: 'SET_TRADES', payload: trades });
+            dispatch({ type: "SET_TRADES", payload: trades });
           } catch (e) {
-            console.error('Failed to load trades on auth state change', e);
+            console.error("Failed to load trades on auth state change", e);
           }
         })();
       } else {
         dispatch({
-          type: 'SET_USER',
-          payload: null
+          type: "SET_USER",
+          payload: null,
         });
       }
     });
@@ -195,58 +229,58 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#0d0d0d",
-    position: 'relative',
-    overflow: 'hidden',
+    position: "relative",
+    overflow: "hidden",
   },
   gradientCircle1: {
-    position: 'absolute',
+    position: "absolute",
     width: 300,
     height: 300,
     borderRadius: 150,
-    backgroundColor: '#00d4d4',
+    backgroundColor: "#00d4d4",
     opacity: 0.05,
     top: -100,
     right: -100,
   },
   gradientCircle2: {
-    position: 'absolute',
+    position: "absolute",
     width: 400,
     height: 400,
     borderRadius: 200,
-    backgroundColor: '#4caf50',
+    backgroundColor: "#4caf50",
     opacity: 0.03,
     bottom: -150,
     left: -150,
   },
   gradientCircle3: {
-    position: 'absolute',
+    position: "absolute",
     width: 250,
     height: 250,
     borderRadius: 125,
-    backgroundColor: '#00d4d4',
+    backgroundColor: "#00d4d4",
     opacity: 0.04,
     bottom: 100,
     right: -50,
   },
   loadingContent: {
-    alignItems: 'center',
+    alignItems: "center",
     padding: 32,
   },
   logoContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 48,
   },
   logoCircle: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: "#1a1a1a",
     borderWidth: 3,
-    borderColor: '#00d4d4',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderColor: "#00d4d4",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 20,
-    shadowColor: '#00d4d4',
+    shadowColor: "#00d4d4",
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.3,
     shadowRadius: 20,
@@ -256,31 +290,31 @@ const styles = StyleSheet.create({
     fontSize: 48,
   },
   appName: {
-    color: '#f5f5f5',
+    color: "#f5f5f5",
     fontSize: 32,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: -0.5,
     marginBottom: 8,
   },
   appTagline: {
-    color: '#00d4d4',
+    color: "#00d4d4",
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     letterSpacing: 1,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
   },
   loaderWrapper: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 24,
   },
   loadingText: {
-    color: '#aaa',
+    color: "#aaa",
     fontSize: 14,
     marginTop: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   dotsContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     marginTop: 8,
   },
@@ -288,15 +322,15 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#00d4d4',
+    backgroundColor: "#00d4d4",
   },
   versionContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 32,
   },
   versionText: {
-    color: '#666',
+    color: "#666",
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

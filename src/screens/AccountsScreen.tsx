@@ -217,7 +217,6 @@ const AccountsScreen = () => {
             <View />
           )}
           <View style={{ flex: 1, alignItems: "center" }}>
-            <Text style={styles.title}>Trading Accounts</Text>
             <Text style={styles.subtitle}>
               Manage your demo and live trading accounts
             </Text>

@@ -12,6 +12,19 @@ module.exports = async function (env, argv) {
       'text/javascript': ['ts', 'tsx'],
       'application/json': ['json']
     };
+    // Ensure static responses that look like JS bundles are served as JS
+    config.devServer.static = config.devServer.static || {};
+    const prevSetHeaders = config.devServer.static.setHeaders;
+    config.devServer.static.setHeaders = (res, path) => {
+      try {
+        if (typeof prevSetHeaders === 'function') prevSetHeaders(res, path);
+      } catch (e) {}
+      if (typeof path === 'string') {
+        if (path.endsWith('.bundle') || path.endsWith('.js') || path.includes('.bundle?')) {
+          res.setHeader('Content-Type', 'application/javascript');
+        }
+      }
+    };
   }
 
   // Provide fallbacks for Node core modules used by some libs (crypto, stream, buffer)

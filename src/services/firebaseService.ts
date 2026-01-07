@@ -159,6 +159,7 @@ export async function createUserProfile(
     lastName?: string;
     email?: string;
     timezone?: string;
+    displayPreference?: string;
   }
 ) {
   try {
@@ -175,6 +176,7 @@ export async function createUserProfile(
       firstName: profile.firstName,
       lastName: profile.lastName,
       email: profile.email,
+      displayPreference: profile.displayPreference,
       timezone:
         profile.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
       createdAt: Timestamp.now(),
@@ -868,6 +870,36 @@ export async function getUserTrades(userId: string): Promise<Trade[]> {
   }
 }
 
+export async function getUserProfile(userId: string) {
+  try {
+    if (!isFirebaseInitialized()) {
+      console.warn(
+        "Firebase not properly initialized. Returning null profile."
+      );
+      return null;
+    }
+    const docRef = doc(db, "users", userId);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return null;
+    const data = snap.data();
+    return {
+      uid: data.uid || userId,
+      email: data.email || undefined,
+      username: data.username || undefined,
+      firstName: data.firstName || undefined,
+      lastName: data.lastName || undefined,
+      timezone: data.timezone || undefined,
+      displayPreference: data.displayPreference || undefined,
+      createdAt: data.createdAt?.toDate
+        ? data.createdAt.toDate()
+        : data.createdAt || new Date(),
+    } as any;
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
+    return null;
+  }
+}
+
 // ==================== ROUTINES ====================
 
 // Helper: return true if given date is a scheduled day for the routine
@@ -1069,10 +1101,10 @@ export async function updateRoutineItem(
     });
 
     // If user unchecked an item, reset the routine streak and clear lastCompleted
-    if (updates && updates.completed === false) {
-      updateData.streak = 0;
-      updateData.lastCompleted = null;
-    }
+    // If the user explicitly unchecks an item, do not aggressively reset the
+    // whole routine streak here. Streak resets are handled elsewhere based on
+    // missed scheduled days. Removing the earlier behavior prevents quick
+    // disappearing toggles when the streak is 1.
 
     // If after this update all items are completed (user manually checked the last item),
     // increment the streak similar to `completeRoutine` and set lastCompleted to today.
@@ -1115,6 +1147,17 @@ export async function updateRoutineItem(
 
       updateData.streak = newStreak;
       updateData.lastCompleted = Timestamp.fromDate(today);
+    }
+
+    // If items were all completed before and now are not, decrement streak
+    const becameIncomplete = !allCompletedNow && wereAllCompletedBefore;
+    if (becameIncomplete) {
+      // Decrement streak by 1 but not below 0
+      const currentStreak = routine.streak || 0;
+      const newStreak = Math.max(0, currentStreak - 1);
+      updateData.streak = newStreak;
+      // Clear lastCompleted so next completion will set appropriately
+      updateData.lastCompleted = null;
     }
 
     await updateDoc(routineRef, updateData);

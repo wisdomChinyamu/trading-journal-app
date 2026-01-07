@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Dimensions } from "react-native";
+import { View, Text, StyleSheet, Dimensions, Platform } from "react-native";
 import { useTheme } from "./ThemeProvider";
 import Svg, {
   Polyline,
@@ -48,8 +48,11 @@ export default function EquityCurveChart({ trades }: EquityCurveChartProps) {
         equity -= 1;
       }
     }
+    // Prefer `tradeTime` (when trade occurred) falling back to `createdAt` (entry time)
+    const rawDate = (trade as any).tradeTime ?? (trade as any).createdAt;
+    const d = new Date(rawDate);
     equityPoints.push({
-      date: new Date(trade.createdAt).toLocaleDateString(),
+      date: isNaN(d.getTime()) ? new Date().toLocaleDateString() : d.toLocaleDateString(),
       value: equity,
     });
   });
@@ -102,13 +105,12 @@ export default function EquityCurveChart({ trades }: EquityCurveChartProps) {
     height - padding
   } ${padding},${height - padding}`;
 
-  // Grid lines
+  // Grid lines (no numeric labels)
   const gridLines = [];
   const yTicks = 4;
   for (let i = 0; i <= yTicks; i++) {
     const t = i / yTicks;
     const y = padding + t * chartHeight;
-    const value = maxValue - t * range;
     gridLines.push(
       <Line
         key={`grid-${i}`}
@@ -119,20 +121,6 @@ export default function EquityCurveChart({ trades }: EquityCurveChartProps) {
         stroke="rgba(255,255,255,0.06)"
         strokeWidth="1"
       />
-    );
-    gridLines.push(
-      <SvgText
-        key={`label-${i}`}
-        x={padding - 10}
-        y={y + 4}
-        fontSize="10"
-        fill="#9aa"
-        textAnchor="end"
-      >
-        {value >= 1000 || value <= -1000
-          ? value.toLocaleString()
-          : value.toFixed(2)}
-      </SvgText>
     );
   }
 
@@ -183,6 +171,25 @@ export default function EquityCurveChart({ trades }: EquityCurveChartProps) {
             height={chartHeight}
             fill="transparent"
             onPress={() => setSelectedIndex(null)}
+            onMouseLeave={Platform.OS === "web" ? (() => setSelectedIndex(null)) : undefined}
+            onMouseMove={Platform.OS === "web" ? (e: any) => {
+              try {
+                const offsetX = e.nativeEvent.offsetX ?? e.nativeEvent.clientX;
+                const targetWidth = (e.nativeEvent.target && e.nativeEvent.target.clientWidth) || e.currentTarget?.clientWidth || 1;
+                const ratio = offsetX / targetWidth;
+                const xInView = padding + ratio * chartWidth;
+                let nearest = 0;
+                let minDist = Infinity;
+                mappedPoints.forEach((pt, idx) => {
+                  const d = Math.abs(pt.x - xInView);
+                  if (d < minDist) {
+                    minDist = d;
+                    nearest = idx;
+                  }
+                });
+                setSelectedIndex(nearest);
+              } catch (err) {}
+            } : undefined}
           />
 
           {/* Grid lines */}
@@ -255,71 +262,38 @@ export default function EquityCurveChart({ trades }: EquityCurveChartProps) {
             );
           })}
 
-          {/* X axis labels: first and last */}
-          {mappedPoints.length > 0 && (
-            <>
-              <SvgText
-                x={mappedPoints[0].x}
-                y={height - padding + 18}
-                fontSize="10"
-                fill="#9aa"
-                textAnchor="start"
-                fontFamily={fontFamily}
-              >
-                {mappedPoints[0].date}
-              </SvgText>
-              <SvgText
-                x={mappedPoints[mappedPoints.length - 1].x}
-                y={height - padding + 18}
-                fontSize="10"
-                fill="#9aa"
-                textAnchor="end"
-                fontFamily={fontFamily}
-              >
-                {mappedPoints[mappedPoints.length - 1].date}
-              </SvgText>
-              {/* Tooltip (SVG) */}
-              {selectedIndex !== null &&
-                mappedPoints[selectedIndex] &&
-                (() => {
-                  const p = mappedPoints[selectedIndex];
-                  const tipW = 130;
-                  const tipH = 36;
-                  const margin = 8;
-                  const x = Math.max(
-                    padding + margin,
-                    Math.min(
-                      internalWidth - padding - tipW - margin,
-                      p.x - tipW / 2
-                    )
-                  );
-                  const y = Math.max(padding, p.y - tipH - 10);
-                  return (
-                    <G key={`tooltip-${selectedIndex}`}>
-                      <Rect
-                        x={x}
-                        y={y}
-                        width={tipW}
-                        height={tipH}
-                        rx={6}
-                        fill="#0d0d0d"
-                        stroke="#00d4d4"
-                        strokeWidth={1}
-                        opacity={0.95}
-                      />
-                      <SvgText x={x + 8} y={y + 14} fontSize="12" fill="#fff" fontFamily={fontFamily}>
-                        {p.value >= 1000 || p.value <= -1000
-                          ? p.value.toLocaleString()
-                          : p.value.toFixed(2)}
-                      </SvgText>
-                      <SvgText x={x + 8} y={y + 28} fontSize="10" fill="#9aa" fontFamily={fontFamily}>
-                        {p.date}
-                      </SvgText>
-                    </G>
-                  );
-                })()}
-            </>
-          )}
+          {selectedIndex !== null && mappedPoints[selectedIndex] && (() => {
+            const p = mappedPoints[selectedIndex];
+            const tipW = 140;
+            const tipH = 40;
+            const margin = 8;
+            const x = Math.max(
+              padding + margin,
+              Math.min(internalWidth - padding - tipW - margin, p.x - tipW / 2)
+            );
+            const y = Math.max(padding, p.y - tipH - 8);
+            return (
+              <G key={`tooltip-${selectedIndex}`}>
+                <Rect
+                  x={x}
+                  y={y}
+                  width={tipW}
+                  height={tipH}
+                  rx={8}
+                  fill="#0d0d0d"
+                  opacity={0.95}
+                  stroke="#00d4d4"
+                  strokeWidth={1}
+                />
+                <SvgText x={x + 10} y={y + 16} fontSize="12" fill="#fff" fontFamily={fontFamily}>
+                  {p.value >= 1000 || p.value <= -1000 ? p.value.toLocaleString() : p.value.toFixed(2)}
+                </SvgText>
+                <SvgText x={x + 10} y={y + 30} fontSize="10" fill="#9aa" fontFamily={fontFamily}>
+                  {p.date}
+                </SvgText>
+              </G>
+            );
+          })()}
         </Svg>
       </View>
 

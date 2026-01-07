@@ -21,7 +21,6 @@ import {
   updateStrategy,
   deleteStrategy,
 } from "../services/firebaseService";
-import { createUserProfile } from "../services/firebaseService";
 import { logout } from "../services/firebaseService";
 import ConfirmModal from "../components/ConfirmModal";
 
@@ -41,18 +40,7 @@ export default function SettingsScreen() {
     null
   );
   const [confirmVisible, setConfirmVisible] = useState(false);
-  const [firstName, setFirstName] = useState<string>(
-    appContextState.user?.firstName || ""
-  );
-  const [lastName, setLastName] = useState<string>(
-    appContextState.user?.lastName || ""
-  );
-  const [username, setUsername] = useState<string>(
-    appContextState.user?.username || ""
-  );
-  const [displayPreference, setDisplayPreference] = useState<
-    "firstName" | "username"
-  >(appContextState.user?.firstName ? "firstName" : "username");
+  const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
 
   const toggleMode = () => {
     setMode(mode === "dark" ? "light" : "dark");
@@ -70,15 +58,6 @@ export default function SettingsScreen() {
         .finally(() => setLoading(false));
     }
   }, [userId]);
-
-  useEffect(() => {
-    setFirstName(appContextState.user?.firstName || "");
-    setLastName(appContextState.user?.lastName || "");
-    setUsername(appContextState.user?.username || "");
-    setDisplayPreference(
-      appContextState.user?.firstName ? "firstName" : "username"
-    );
-  }, [appContextState.user]);
 
   const handleAddItem = (item: Omit<ChecklistItem, "id" | "createdAt">) => {
     dispatch({
@@ -156,8 +135,7 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* Strategy Management Section */}
-      {/* Profile Section */}
+      {/* Profile management moved to its own screen */}
       <View style={[styles.section, { backgroundColor: colors.card }]}>
         <View style={styles.sectionHeader}>
           <View>
@@ -167,169 +145,48 @@ export default function SettingsScreen() {
             <Text
               style={[styles.sectionDescription, { color: colors.subtext }]}
             >
-              Edit your name and username
+              Manage your profile information
             </Text>
           </View>
         </View>
-
-        <View style={{ gap: 10 }}>
-          <TextInput
-            value={firstName}
-            onChangeText={setFirstName}
-            placeholder="First name"
-            placeholderTextColor={colors.subtext}
-            style={[
-              styles.input,
-              { backgroundColor: colors.surface, color: colors.text },
-            ]}
-          />
-          <TextInput
-            value={lastName}
-            onChangeText={setLastName}
-            placeholder="Last name"
-            placeholderTextColor={colors.subtext}
-            style={[
-              styles.input,
-              { backgroundColor: colors.surface, color: colors.text },
-            ]}
-          />
-          <TextInput
-            value={username}
-            onChangeText={setUsername}
-            placeholder="Username"
-            placeholderTextColor={colors.subtext}
-            style={[
-              styles.input,
-              { backgroundColor: colors.surface, color: colors.text },
-            ]}
-          />
-
-          <View>
-            <Text
-              style={[
-                styles.sectionDescription,
-                { color: colors.subtext, marginBottom: 8 },
-              ]}
-            >
-              Display name on Dashboard
+        <TouchableOpacity
+          style={[styles.settingItem, { backgroundColor: colors.surface }]}
+          activeOpacity={0.8}
+          onPress={() => (navigation as any).navigate("ManageProfile")}
+        >
+          <View style={styles.settingLeft}>
+            <Text style={[styles.settingIcon, { color: colors.highlight }]}>
+              👤
             </Text>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <TouchableOpacity
-                onPress={() => setDisplayPreference("firstName")}
-                style={[
-                  styles.scaleOption,
-                  displayPreference === "firstName" && styles.scaleOptionActive,
-                  {
-                    backgroundColor: colors.surface,
-                    paddingVertical: 10,
-                    flex: 1,
-                  },
-                ]}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.scaleOptionText,
-                    {
-                      color:
-                        displayPreference === "firstName"
-                          ? colors.highlight
-                          : colors.text,
-                    },
-                  ]}
-                >
-                  First name
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setDisplayPreference("username")}
-                style={[
-                  styles.scaleOption,
-                  displayPreference === "username" && styles.scaleOptionActive,
-                  {
-                    backgroundColor: colors.surface,
-                    paddingVertical: 10,
-                    flex: 1,
-                  },
-                ]}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.scaleOptionText,
-                    {
-                      color:
-                        displayPreference === "username"
-                          ? colors.highlight
-                          : colors.text,
-                    },
-                  ]}
-                >
-                  Username
-                </Text>
-              </TouchableOpacity>
+            <View>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>
+                Edit Profile
+              </Text>
+              <Text style={[styles.settingHint, { color: colors.subtext }]}>
+                Change display name and username
+              </Text>
             </View>
           </View>
-
-          <TouchableOpacity
-            style={[
-              styles.createButton,
-              { alignSelf: "flex-start", backgroundColor: colors.highlight },
-            ]}
-            onPress={async () => {
-              setLoading(true);
-              try {
-                const uid = appContextState.user?.uid || userId;
-                if (!uid) throw new Error("No user id");
-                await createUserProfile(uid, {
-                  firstName: firstName || undefined,
-                  lastName: lastName || undefined,
-                  username: username || undefined,
-                });
-                // Update local context user
-                dispatch({
-                  type: "SET_USER",
-                  payload: {
-                    ...(appContextState.user || {}),
-                    firstName: firstName || undefined,
-                    lastName: lastName || undefined,
-                    username: username || undefined,
-                  },
-                });
-              } catch (e) {
-                console.error("Failed to save profile", e);
-                Alert.alert("Error", "Failed to save profile");
-              } finally {
-                setLoading(false);
-              }
-            }}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[styles.createButtonText, { color: colors.background }]}
-            >
-              Save Profile
-            </Text>
-          </TouchableOpacity>
-        </View>
+          <Text style={[styles.chevron, { color: colors.subtext }]}>›</Text>
+        </TouchableOpacity>
       </View>
       <View style={[styles.section, { backgroundColor: colors.card }]}>
         <View style={styles.sectionHeader}>
-          <View>
+          <View style={styles.sectionHeaderLeft}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               📊 Strategies & Checklists
             </Text>
             <Text
               style={[styles.sectionDescription, { color: colors.subtext }]}
             >
-              Create and manage strategies. Each strategy has its own checklist.
+              Manage your strategies and their checklists on a dedicated screen.
             </Text>
           </View>
           {strategies.length > 0 && (
             <View
               style={[
                 styles.countBadge,
-                { backgroundColor: `${colors.highlight}15` },
+                { backgroundColor: `${colors.highlight}15`, alignSelf: "flex-start" },
               ]}
             >
               <Text
@@ -341,215 +198,26 @@ export default function SettingsScreen() {
           )}
         </View>
 
-        {/* Create new strategy */}
-        <View style={styles.createStrategyContainer}>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                flex: 1,
-                backgroundColor: colors.surface,
-                color: colors.text,
-                borderColor: `${colors.highlight}30`,
-              },
-            ]}
-            placeholder="New strategy name (e.g., SMC Breakout)"
-            value={newStrategyName}
-            onChangeText={setNewStrategyName}
-            placeholderTextColor={colors.subtext}
-            editable={!loading}
-          />
-          <TouchableOpacity
-            style={[
-              styles.createButton,
-              {
-                backgroundColor: newStrategyName.trim()
-                  ? colors.highlight
-                  : colors.neutral,
-              },
-            ]}
-            onPress={handleCreateStrategy}
-            disabled={loading || !newStrategyName.trim()}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color={colors.text} />
-            ) : (
-              <Text
-                style={[styles.createButtonText, { color: colors.background }]}
-              >
-                + Add
+        <TouchableOpacity
+          style={[styles.settingItem, { backgroundColor: colors.surface }]}
+          activeOpacity={0.8}
+          onPress={() => (navigation as any).navigate("ManageStrategy")}
+        >
+          <View style={styles.settingLeft}>
+            <Text style={[styles.settingIcon, { color: colors.highlight }]}>
+              📊
+            </Text>
+            <View>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>
+                Manage Strategies
               </Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* List strategies */}
-        {strategies.length > 0 ? (
-          <View style={styles.strategiesList}>
-            {strategies.map((strategy) => {
-              const isSelected = selectedStrategyId === strategy.id;
-              const isHovered = hoveredItem === strategy.id;
-
-              return (
-                <View
-                  key={strategy.id}
-                  style={[
-                    styles.strategyRow,
-                    {
-                      backgroundColor: isSelected
-                        ? `${colors.highlight}15`
-                        : colors.surface,
-                      borderColor: isSelected
-                        ? colors.highlight
-                        : "transparent",
-                      borderWidth: 2,
-                    },
-                  ]}
-                  {...Platform.select({
-                    web: {
-                      onMouseEnter: () => setHoveredItem(strategy.id),
-                      onMouseLeave: () => setHoveredItem(null),
-                    },
-                  })}
-                >
-                  <TouchableOpacity
-                    onPress={() => setSelectedStrategyId(strategy.id)}
-                    style={styles.strategyInfo}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.strategyNameContainer}>
-                      <Text
-                        style={[
-                          styles.strategyName,
-                          {
-                            color: isSelected ? colors.highlight : colors.text,
-                          },
-                        ]}
-                      >
-                        {strategy.name}
-                      </Text>
-                      {isSelected && (
-                        <View
-                          style={[
-                            styles.activeBadge,
-                            { backgroundColor: `${colors.highlight}30` },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.activeBadgeText,
-                              { color: colors.highlight },
-                            ]}
-                          >
-                            Active
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text
-                      style={[styles.checklistCount, { color: colors.subtext }]}
-                    >
-                      {strategy.checklist?.length || 0} items
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => {
-                      setConfirmStrategyId(strategy.id);
-                      setConfirmVisible(true);
-                    }}
-                    style={[
-                      styles.deleteButton,
-                      { backgroundColor: `${colors.lossEnd}20` },
-                    ]}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.deleteButtonText,
-                        { color: colors.lossEnd },
-                      ]}
-                    >
-                      🗑️
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
-          </View>
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={[styles.emptyStateIcon, { color: colors.subtext }]}>
-              📋
-            </Text>
-            <Text style={[styles.emptyStateText, { color: colors.subtext }]}>
-              No strategies yet
-            </Text>
-            <Text style={[styles.emptyStateSubtext, { color: colors.subtext }]}>
-              Create your first trading strategy above
-            </Text>
-          </View>
-        )}
-
-        {/* Checklist editor for selected strategy */}
-        {selectedStrategyId && (
-          <View style={styles.checklistEditor}>
-            <View style={styles.checklistHeader}>
-              <Text style={[styles.checklistTitle, { color: colors.text }]}>
-                ✏️ Edit Checklist
-              </Text>
-              <Text
-                style={[styles.checklistSubtitle, { color: colors.subtext }]}
-              >
-                {strategies.find((s) => s.id === selectedStrategyId)?.name}
+              <Text style={[styles.settingHint, { color: colors.subtext }]}>
+                Create and edit strategies and their checklists
               </Text>
             </View>
-            <EditableChecklistTable
-              items={
-                strategies.find((s) => s.id === selectedStrategyId)
-                  ?.checklist || []
-              }
-              onAddItem={(item) => {
-                const current =
-                  strategies.find((s) => s.id === selectedStrategyId)
-                    ?.checklist || [];
-                handleUpdateChecklist([
-                  ...current,
-                  { ...item, id: `item-${Date.now()}`, createdAt: new Date() },
-                ]);
-              }}
-              onUpdateItem={(item) => {
-                const current =
-                  strategies.find((s) => s.id === selectedStrategyId)
-                    ?.checklist || [];
-                handleUpdateChecklist(
-                  current.map((i) => (i.id === item.id ? item : i))
-                );
-              }}
-              onDeleteItem={(itemId) => {
-                const current =
-                  strategies.find((s) => s.id === selectedStrategyId)
-                    ?.checklist || [];
-                Alert.alert(
-                  "Delete Checklist Item",
-                  "Are you sure you want to delete this checklist item?",
-                  [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Delete",
-                      style: "destructive",
-                      onPress: () =>
-                        handleUpdateChecklist(
-                          current.filter((i) => i.id !== itemId)
-                        ),
-                    },
-                  ]
-                );
-              }}
-            />
           </View>
-        )}
+          <Text style={[styles.chevron, { color: colors.subtext }]}>›</Text>
+        </TouchableOpacity>
       </View>
 
       {/* UI Scale Settings */}
@@ -714,21 +382,7 @@ export default function SettingsScreen() {
             },
           ]}
           activeOpacity={0.8}
-          onPress={async () => {
-            try {
-              await logout();
-              try {
-                dispatch({ type: "SET_USER", payload: null });
-              } catch {}
-              navigation.reset({
-                index: 0,
-                routes: [{ name: "Login" }],
-              } as any);
-            } catch (e) {
-              console.error("Logout failed", e);
-              Alert.alert("Error", "Failed to logout.");
-            }
-          }}
+          onPress={() => setLogoutConfirmVisible(true)}
         >
           <View style={styles.settingLeft}>
             <Text style={[styles.settingIcon, { color: colors.highlight }]}>
@@ -744,6 +398,29 @@ export default function SettingsScreen() {
             </View>
           </View>
         </TouchableOpacity>
+
+        <ConfirmModal
+          visible={logoutConfirmVisible}
+          title="Confirm Logout"
+          message="Are you sure you want to logout?"
+          confirmText="Logout"
+          cancelText="Cancel"
+          onCancel={() => setLogoutConfirmVisible(false)}
+          onConfirm={async () => {
+            setLogoutConfirmVisible(false);
+            try {
+              await logout();
+              try {
+                dispatch({ type: "SET_USER", payload: null });
+              } catch {}
+              navigation.reset({ index: 0, routes: [{ name: "Login" }] } as any);
+              Alert.alert("Logged out", "You have been logged out successfully.");
+            } catch (e) {
+              console.error("Logout failed", e);
+              Alert.alert("Error", "Failed to logout.");
+            }
+          }}
+        />
 
         <TouchableOpacity
           style={[
@@ -861,6 +538,10 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: 16,
   },
+  sectionHeaderLeft: {
+    flex: 1,
+    marginRight: 8,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "800",
@@ -877,6 +558,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
     minWidth: 36,
+    maxWidth: 84,
+    overflow: "hidden",
     alignItems: "center",
   },
   countBadgeText: {

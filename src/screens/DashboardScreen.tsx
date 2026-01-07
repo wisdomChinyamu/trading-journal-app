@@ -90,7 +90,7 @@ export default function DashboardScreen() {
   const equitySeries = React.useMemo(() => {
     if (!filteredTrades || filteredTrades.length === 0) return [];
     const withDates = filteredTrades
-      .map((t) => ({ t, date: parseDate((t as any).createdAt) }))
+        .map((t) => ({ t, date: parseDate((t as any).tradeTime) || parseDate((t as any).createdAt) }))
       .filter((x) => x.date !== null) as { t: Trade; date: Date }[];
 
     if (withDates.length === 0) return [];
@@ -142,6 +142,7 @@ export default function DashboardScreen() {
 
   const { width } = Dimensions.get("window");
   const isLargeScreen = width >= 768;
+  const chartHeight = Math.round(Math.max(160, Math.min(300, width * 0.5)));
 
   const handleScroll = (e: any) => {
     try {
@@ -179,9 +180,17 @@ export default function DashboardScreen() {
                   { color: colors.text, fontSize: 32 * scaleMultiplier },
                 ]}
               >
-                {state.user?.firstName ||
-                  state.user?.username ||
-                  "Caprianne Trdz"}
+                {(() => {
+                  const user: any = state.user || {};
+                  const pref =
+                    user.displayPreference ||
+                    (user.firstName ? "firstName" : "username");
+                  const name =
+                    pref === "firstName"
+                      ? user.firstName || user.username
+                      : user.username || user.firstName;
+                  return name ? `${name} trdz` : "Caprianne Trdz";
+                })()}
               </Text>
               <View style={styles.accentLine} />
             </View>
@@ -357,7 +366,7 @@ export default function DashboardScreen() {
                   <Text style={styles.badgeText}>{trades.length} Trades</Text>
                 </View>
               </View>
-              <EquityChart series={equitySeries} />
+              <EquityChart series={equitySeries} height={chartHeight} />
             </View>
 
             {/* Enhanced Calendar Card */}

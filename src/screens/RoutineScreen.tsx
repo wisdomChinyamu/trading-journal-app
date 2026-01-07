@@ -130,7 +130,8 @@ export default function RoutineScreen() {
         }
       }
 
-      // Reset completed items at start of a new scheduled day so the checklist refreshes
+      // Reset completed items at start of a new scheduled day so the checklist refreshes.
+      // Only clear items that were completed on a previous day (completedAt < today).
       try {
         const isTodayScheduled = isScheduledDay(
           new Date(),
@@ -140,15 +141,21 @@ export default function RoutineScreen() {
           ? new Date(activeRoutine.lastCompleted)
           : null;
 
-        // Only consider 'before today' if there was a recorded lastCompleted date
         const lastCompletedBeforeToday =
           lastCompletedDate &&
           new Date(lastCompletedDate).setHours(0, 0, 0, 0) < today.getTime();
 
         if (isTodayScheduled && lastCompletedBeforeToday) {
-          // If any items are still marked completed from previous day, reset them for today
-          const anyCompleted = activeRoutine.items.some((i) => i.completed);
-          if (anyCompleted) {
+          // Only consider items that were completed on a previous day
+          const anyCompletedFromPreviousDay = activeRoutine.items.some((i) => {
+            if (!i.completed) return false;
+            if (!i.completedAt) return true; // treat missing timestamp as old
+            const comp = new Date(i.completedAt);
+            comp.setHours(0, 0, 0, 0);
+            return comp.getTime() < today.getTime();
+          });
+
+          if (anyCompletedFromPreviousDay) {
             const resetItems = activeRoutine.items.map((it) => ({
               ...it,
               completed: false,
@@ -324,7 +331,11 @@ export default function RoutineScreen() {
       // can overwrite recent toggles when re-fetching.
       const optimisticItems = activeRoutine.items.map((it) =>
         it.id === itemId
-          ? { ...it, completed: !it.completed, completedAt: !it.completed ? new Date() : null }
+          ? {
+              ...it,
+              completed: !it.completed,
+              completedAt: !it.completed ? new Date() : null,
+            }
           : it
       );
       setActiveRoutine({ ...(activeRoutine as any), items: optimisticItems });

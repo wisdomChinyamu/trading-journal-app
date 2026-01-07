@@ -9,6 +9,7 @@ import Svg, {
   LinearGradient,
   Stop,
   Text as SvgText,
+  Rect,
 } from "react-native-svg";
 import { useTheme } from "./ThemeProvider";
 
@@ -22,6 +23,9 @@ export default function EquityChart({
   height?: number;
 }) {
   const { colors, fontFamily } = useTheme();
+  const [selectedIndex, setSelectedIndex] = React.useState<number | null>(
+    null
+  );
 
   // Use a scalable viewBox so the SVG fits its container without overflowing.
   const internalWidth = 800;
@@ -57,15 +61,11 @@ export default function EquityChart({
       } L ${padding.left} ${padding.top + chartHeight} Z`
     : "";
 
-  // Y-axis labels
+  // Y-axis ticks (no labels shown)
   const yTicks = 5;
-  const yLabels = Array.from({ length: yTicks }, (_, i) => {
-    const value = max - (i * range) / (yTicks - 1);
-    return {
-      value: value.toFixed(1),
-      y: padding.top + (i * chartHeight) / (yTicks - 1),
-    };
-  });
+  const yTickPositions = Array.from({ length: yTicks }, (_, i) =>
+    padding.top + (i * chartHeight) / (yTicks - 1)
+  );
 
   if (series.length === 0) {
     return (
@@ -95,27 +95,16 @@ export default function EquityChart({
 
         {/* Grid lines */}
         <G>
-          {yLabels.map((label, i) => (
-            <G key={i}>
-              <Line
-                x1={padding.left}
-                y1={label.y}
-                x2={padding.left + chartWidth}
-                y2={label.y}
-                stroke="rgba(255,255,255,0.05)"
-                strokeWidth="1"
-              />
-              <SvgText
-                x={padding.left - 8}
-                y={label.y + 4}
-                fontSize="10"
-                fill={colors.subtext}
-                textAnchor="end"
-                fontFamily={fontFamily}
-              >
-                {label.value}
-              </SvgText>
-            </G>
+          {yTickPositions.map((y, i) => (
+            <Line
+              key={`grid-${i}`}
+              x1={padding.left}
+              y1={y}
+              x2={padding.left + chartWidth}
+              y2={y}
+              stroke="rgba(255,255,255,0.05)"
+              strokeWidth="1"
+            />
           ))}
         </G>
 
@@ -147,18 +136,66 @@ export default function EquityChart({
           />
         )}
 
+        {/* Interaction layer to clear selection */}
+        <Rect
+          x={padding.left}
+          y={padding.top}
+          width={chartWidth}
+          height={chartHeight}
+          fill="transparent"
+          onPress={() => setSelectedIndex(null)}
+        />
+
         {/* Data points */}
         {points.map((p, i) => (
-          <Circle
-            key={i}
-            cx={p.x}
-            cy={p.y}
-            r="4"
-            fill={colors.highlight}
-            stroke={colors.background}
-            strokeWidth="2"
-          />
+          <G key={`pt-${i}`}>
+            <Circle
+              cx={p.x}
+              cy={p.y}
+              r={4}
+              fill={colors.highlight}
+              stroke={colors.background}
+              strokeWidth="2"
+              accessible
+              accessibilityLabel={`Equity ${series[i].value.toFixed(2)} on ${series[i].date}`}
+              onPress={() => setSelectedIndex(i)}
+            />
+          </G>
         ))}
+
+        {/* Tooltip */}
+        {selectedIndex !== null && points[selectedIndex] && (() => {
+          const p = points[selectedIndex];
+          const tipW = 140;
+          const tipH = 40;
+          const margin = 8;
+          const x = Math.max(
+            padding.left + margin,
+            Math.min(padding.left + chartWidth - tipW - margin, p.x - tipW / 2)
+          );
+          const y = Math.max(padding.top, p.y - tipH - 8);
+          return (
+            <G key={`tooltip-${selectedIndex}`}>
+              <Rect
+                x={x}
+                y={y}
+                width={tipW}
+                height={tipH}
+                rx={8}
+                fill="#0d0d0d"
+                opacity={0.95}
+                stroke={colors.highlight}
+                strokeWidth={1}
+              />
+              <SvgText x={x + 10} y={y + 16} fontSize="12" fill="#fff" fontFamily={fontFamily}>
+                {series[selectedIndex].value.toFixed(2)}
+              </SvgText>
+              <SvgText x={x + 10} y={y + 30} fontSize="10" fill="#9aa" fontFamily={fontFamily}>
+                {series[selectedIndex].date}
+              </SvgText>
+            </G>
+          );
+        })()}
 
         {/* Axes */}
         <Line

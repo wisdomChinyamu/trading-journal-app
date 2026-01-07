@@ -19,6 +19,8 @@ import SettingsScreen from "../screens/SettingsScreen";
 import AccountsScreen from "../screens/AccountsScreen";
 import TradeDetailScreen from "../screens/TradeDetailScreen";
 import AddTradeScreen from "../screens/AddTradeScreen";
+import ManageProfileScreen from "../screens/ManageProfileScreen";
+import ManageStrategyScreen from "../screens/ManageStrategyScreen";
 
 const Tab = createBottomTabNavigator();
 
@@ -210,6 +212,20 @@ function SettingsStack() {
               </View>
             </View>
           ),
+        }}
+      />
+      <Stack.Screen
+        name="ManageProfile"
+        component={ManageProfileScreen}
+        options={{
+          title: "Manage Profile",
+        }}
+      />
+      <Stack.Screen
+        name="ManageStrategy"
+        component={ManageStrategyScreen}
+        options={{
+          title: "Manage Strategies",
         }}
       />
       <Stack.Screen

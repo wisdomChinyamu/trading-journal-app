@@ -79,6 +79,18 @@ export default function TradeDetailScreen({ route, navigation }: any) {
     return "#f44336";
   };
 
+  const parseToDate = (v: any) => {
+    if (!v) return new Date();
+    if (typeof v === "string") return new Date(v);
+    if (v instanceof Date) return v;
+    if (v.toDate && typeof v.toDate === "function") return v.toDate();
+    try {
+      return new Date(v);
+    } catch (e) {
+      return new Date();
+    }
+  };
+
   return (
     <>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -183,7 +195,9 @@ export default function TradeDetailScreen({ route, navigation }: any) {
             <View style={styles.infoCard}>
               <Text style={styles.infoLabel}>Date</Text>
               <Text style={styles.infoValue}>
-                {new Date(trade.createdAt).toLocaleDateString("en-US", {
+                {parseToDate(
+                  (trade as any).tradeTime || (trade as any).createdAt
+                ).toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
                   year: "numeric",
