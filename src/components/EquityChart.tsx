@@ -18,9 +18,13 @@ type Point = { x: number; y: number };
 export default function EquityChart({
   series,
   height = 180,
+  startingBalance = 0,
+  leftPadding,
 }: {
   series: { date: string; value: number }[];
   height?: number;
+  startingBalance?: number;
+  leftPadding?: number;
 }) {
   const { colors, fontFamily } = useTheme();
   const [selectedIndex, setSelectedIndex] = React.useState<number | null>(
@@ -28,7 +32,7 @@ export default function EquityChart({
   );
   // Measure container width so the chart fills the card area responsively.
   const [internalWidth, setInternalWidth] = React.useState<number>(800);
-  const padding = { top: 24, right: 48, bottom: 36, left: 48 };
+  const padding = { top: 24, right: 48, bottom: 36, left: leftPadding ?? 48 };
   const chartWidth = internalWidth - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
 
@@ -245,7 +249,7 @@ export default function EquityChart({
           <Text style={[styles.statLabel, { color: colors.subtext }]}>
             Starting
           </Text>
-          <Text style={[styles.statValue, { color: colors.text }]}>0.00</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{startingBalance.toFixed(2)}</Text>
         </View>
         <View
           style={[styles.statDivider, { backgroundColor: colors.neutral }]}

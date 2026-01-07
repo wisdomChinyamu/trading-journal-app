@@ -158,19 +158,8 @@ export default function SettingsScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
           <Text style={[styles.subtitle, { color: colors.subtext }]}>
             Manage your trading preferences
-          </Text>
-        </View>
-        <View
-          style={[
-            styles.headerBadge,
-            { backgroundColor: `${colors.highlight}20` },
-          ]}
-        >
-          <Text style={[styles.headerBadgeText, { color: colors.highlight }]}>
-            ⚙️
           </Text>
         </View>
       </View>
@@ -202,9 +191,6 @@ export default function SettingsScreen() {
               <Text style={[styles.settingLabel, { color: colors.text }]}>
                 Edit Profile
               </Text>
-              <Text style={[styles.settingHint, { color: colors.subtext }]}>
-                Change display name and username
-              </Text>
             </View>
           </View>
           <Text style={[styles.chevron, { color: colors.subtext }]}>›</Text>
@@ -216,11 +202,7 @@ export default function SettingsScreen() {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               📊 Strategies & Checklists
             </Text>
-            <Text
-              style={[styles.sectionDescription, { color: colors.subtext }]}
-            >
-              Manage your strategies and their checklists on a dedicated screen.
-            </Text>
+            
           </View>
           {strategies.length > 0 && (
             <View
@@ -250,9 +232,6 @@ export default function SettingsScreen() {
             <View>
               <Text style={[styles.settingLabel, { color: colors.text }]}>
                 Manage Strategies
-              </Text>
-              <Text style={[styles.settingHint, { color: colors.subtext }]}>
-                Create and edit strategies and their checklists
               </Text>
             </View>
           </View>

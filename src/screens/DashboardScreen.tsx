@@ -142,7 +142,18 @@ export default function DashboardScreen() {
 
   const { width } = Dimensions.get("window");
   const isLargeScreen = width >= 768;
-  const chartHeight = Math.round(Math.max(220, Math.min(420, width * 0.6)));
+  const chartHeight = Math.round(Math.max(260, Math.min(520, width * 0.7)));
+
+  const accountStartingBalance = React.useMemo(() => {
+    if (!selectedAccountId || selectedAccountId === "all") {
+      return (state.accounts || []).reduce(
+        (s, a) => s + Number(a.startingBalance || 0),
+        0
+      );
+    }
+    const acc = (state.accounts || []).find((a) => a.id === selectedAccountId);
+    return acc ? Number(acc.startingBalance || 0) : 0;
+  }, [state.accounts, selectedAccountId]);
 
   const handleScroll = (e: any) => {
     try {
@@ -366,7 +377,7 @@ export default function DashboardScreen() {
                   <Text style={styles.badgeText}>{trades.length} Trades</Text>
                 </View>
               </View>
-              <EquityChart series={equitySeries} height={chartHeight} />
+              <EquityChart series={equitySeries} height={chartHeight} startingBalance={accountStartingBalance} leftPadding={16} />
             </View>
 
             {/* Enhanced Calendar Card */}

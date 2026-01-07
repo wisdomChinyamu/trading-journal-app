@@ -54,7 +54,6 @@ export default function EquityCurveChart({
   };
 
   // Calculate equity curve (account balance over time)
-  const startingBalance = typeof (arguments[0] as any)?.startingBalance === "number" ? (arguments[0] as any).startingBalance : 0;
   let equity = startingBalance;
   const equityPoints: { date: string; value: number }[] = [];
 
@@ -174,6 +173,8 @@ export default function EquityCurveChart({
     const dd = peak - p.value;
     if (dd > maxDrawdown) maxDrawdown = dd;
   });
+  const rawPeak = Math.max(...values);
+  const drawdownPercent = rawPeak > 0 ? (maxDrawdown / rawPeak) * 100 : 0;
 
   return (
     <View style={styles.container}>
@@ -371,14 +372,14 @@ export default function EquityCurveChart({
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Peak</Text>
           <Text style={[styles.statValue, { color: "#4caf50" }]}>
-            {maxValue.toFixed(2)}
+            {rawPeak.toFixed(2)}
           </Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Drawdown</Text>
           <Text style={[styles.statValue, { color: "#f44336" }]}> 
-            {maxDrawdown ? `-${maxDrawdown.toFixed(2)}` : "0.00"}
+            {maxDrawdown ? `-${maxDrawdown.toFixed(2)} (${drawdownPercent.toFixed(1)}%)` : "0.00"}
           </Text>
         </View>
         <View style={styles.statDivider} />

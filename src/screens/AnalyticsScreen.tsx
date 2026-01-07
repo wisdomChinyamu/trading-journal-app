@@ -52,6 +52,43 @@ export default function AnalyticsScreen() {
     );
   }, [state.trades, selectedAccountId]);
 
+  // Apply time filter (use tradeTime when present, otherwise createdAt)
+  const parseDate = (v: any): Date | null => {
+    if (!v && v !== 0) return null;
+    if (typeof v?.toDate === "function") {
+      try {
+        const d = v.toDate();
+        return isNaN(d.getTime()) ? null : d;
+      } catch {
+        return null;
+      }
+    }
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const timeFilteredTrades = React.useMemo(() => {
+    const now = new Date();
+    const base = filteredTrades || [];
+    if (timeFilter === "all") return base;
+    if (timeFilter === "week") {
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return base.filter((t: any) => {
+        const d = parseDate(t.tradeTime) || parseDate(t.createdAt);
+        return d ? d.getTime() >= weekAgo.getTime() : false;
+      });
+    }
+    if (timeFilter === "month") {
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      return base.filter((t: any) => {
+        const d = parseDate(t.tradeTime) || parseDate(t.createdAt);
+        return d ? d.getFullYear() === year && d.getMonth() === month : false;
+      });
+    }
+    return base;
+  }, [filteredTrades, timeFilter]);
+
   const accountStartingBalance = React.useMemo(() => {
     if (!selectedAccountId || selectedAccountId === "all") {
       // sum starting balances when viewing all accounts
@@ -65,16 +102,16 @@ export default function AnalyticsScreen() {
   }, [state.accounts, selectedAccountId]);
 
   const metrics = {
-    winRate: calculateWinRate(filteredTrades),
-    avgRR: calculateAverageRR(filteredTrades),
-    profitFactor: calculateProfitFactor(filteredTrades as any),
-    performanceByPair: getPerformanceBy(filteredTrades, "pair"),
-    performanceBySession: getPerformanceBy(filteredTrades, "session"),
+    winRate: calculateWinRate(timeFilteredTrades),
+    avgRR: calculateAverageRR(timeFilteredTrades),
+    profitFactor: calculateProfitFactor(timeFilteredTrades as any),
+    performanceByPair: getPerformanceBy(timeFilteredTrades, "pair"),
+    performanceBySession: getPerformanceBy(timeFilteredTrades, "session"),
   };
 
-  const totalTrades = filteredTrades.length;
-  const winningTrades = filteredTrades.filter((t) => t.result === "Win").length;
-  const losingTrades = filteredTrades.filter((t) => t.result === "Loss").length;
+  const totalTrades = timeFilteredTrades.length;
+  const winningTrades = timeFilteredTrades.filter((t) => t.result === "Win").length;
+  const losingTrades = timeFilteredTrades.filter((t) => t.result === "Loss").length;
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -227,7 +264,7 @@ export default function AnalyticsScreen() {
             </View>
           </View>
             <EquityCurveChart
-              trades={filteredTrades}
+              trades={timeFilteredTrades}
               startingBalance={accountStartingBalance}
               height={340}
             />
