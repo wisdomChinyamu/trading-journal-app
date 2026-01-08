@@ -32,11 +32,11 @@ export default function EquityCurveChart({
   );
   // Ensure Y-axis (chart) height is always 3/4 of X-axis width (chartWidth)
   // We compute internal padding-dependent chart width and force the overall
-  // SVG height so the inner chart area height == 0.75 * chartWidth.
+  // SVG height so the inner chart area height == 0.65 * chartWidth.
   const basePadding = 40;
   const paddingForCalc = basePadding;
   const chartWidthForCalc = internalWidth - paddingForCalc * 2;
-  const computedChartHeight = Math.max(120, Math.round(chartWidthForCalc * 0.75));
+  const computedChartHeight = Math.max(120, Math.round(chartWidthForCalc * 0.65));
   const height = typeof propHeight === "number" ? Math.max(propHeight, paddingForCalc * 2 + computedChartHeight) : paddingForCalc * 2 + computedChartHeight;
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 

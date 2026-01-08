@@ -143,6 +143,8 @@ export default function DashboardScreen() {
   const { width } = Dimensions.get("window");
   const isLargeScreen = width >= 768;
   const chartHeight = Math.round(Math.max(260, Math.min(520, width * 0.7)));
+  // Use original calendar card height on large screens (previously used maxHeight: 640)
+  const calendarCardHeight = isLargeScreen ? 720 : undefined;
 
   const accountStartingBalance = React.useMemo(() => {
     if (!selectedAccountId || selectedAccountId === "all") {
@@ -360,82 +362,38 @@ export default function DashboardScreen() {
         {/* Main Content Layout */}
         <View style={isLargeScreen ? styles.row : undefined}>
           <View style={isLargeScreen ? styles.leftCol : undefined}>
-            {/* Enhanced Equity Chart Card */}
-            <View
-              style={[styles.chartCard, { backgroundColor: colors.surface }]}
-            >
-              <View style={styles.cardHeader}>
-                <Text
-                  style={[
-                    styles.cardTitle,
-                    { color: colors.text, fontSize: 18 * scaleMultiplier },
-                  ]}
-                >
-                  Equity Curve
-                </Text>
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{trades.length} Trades</Text>
+            {/* Large-screen: Equity + Grade side-by-side; Small-screen: stacked */}
+            {isLargeScreen ? (
+              <View style={{ flexDirection: "row", gap: 16 }}>
+                <View style={[styles.chartCard, { backgroundColor: colors.surface, flex: 2 }]}>
+                  <View style={styles.cardHeader}>
+                    <Text
+                      style={[
+                        styles.cardTitle,
+                        { color: colors.text, fontSize: 18 * scaleMultiplier },
+                      ]}
+                    >
+                      Equity Curve
+                    </Text>
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{trades.length} Trades</Text>
+                    </View>
+                  </View>
+                  <EquityChart series={equitySeries} height={chartHeight} startingBalance={accountStartingBalance} leftPadding={16} />
                 </View>
-              </View>
-              <EquityChart series={equitySeries} height={chartHeight} startingBalance={accountStartingBalance} leftPadding={16} />
-            </View>
 
-            {/* Enhanced Calendar Card */}
-            <View
-              style={[styles.chartCard, { backgroundColor: colors.surface }]}
-            >
-              <View style={styles.cardHeader}>
-                <Text
-                  style={[
-                    styles.cardTitle,
-                    { color: colors.text, fontSize: 18 * scaleMultiplier },
-                  ]}
-                >
-                  Trading Calendar
-                </Text>
-                <Text
-                  style={[
-                    styles.cardSubtitle,
-                    { color: colors.subtext, fontSize: 13 * scaleMultiplier },
-                  ]}
-                >
-                  Tap a day to view trades
-                </Text>
-              </View>
-              <CalendarHeatmap
-                trades={filteredTrades}
-                onDayPress={(date) => setSelectedDate(date)}
-                theme={mode}
-              />
-            </View>
-
-            {/* Small-screen Weekly Summary directly below calendar */}
-            {!isLargeScreen && (
-              <View
-                style={[
-                  styles.chartCard,
-                  { backgroundColor: colors.surface, marginTop: 8 },
-                ]}
-              >
-                <WeeklySummaryPanelSmall trades={filteredTrades} />
-              </View>
-            )}
-
-            {/* Enhanced Grade Distribution */}
-            <View
-              style={[styles.chartCard, { backgroundColor: colors.surface }]}
-            >
-              <View style={styles.cardHeader}>
-                <Text
-                  style={[
-                    styles.cardTitle,
-                    { color: colors.text, fontSize: 18 * scaleMultiplier },
-                  ]}
-                >
-                  Grade Distribution
-                </Text>
-              </View>
-              <View style={styles.gradeContainer}>
+                <View style={[styles.chartCard, { backgroundColor: colors.surface, flex: 1 }]}>
+                  <View style={styles.cardHeader}>
+                    <Text
+                      style={[
+                        styles.cardTitle,
+                        { color: colors.text, fontSize: 18 * scaleMultiplier },
+                      ]}
+                    >
+                      Grade Distribution
+                    </Text>
+                  </View>
+                  <View style={styles.gradeContainer}>
                 {(["A+", "A", "B", "C", "D"] as const).map((grade) => {
                   const count = filteredTrades.filter(
                     (t) => t.grade === grade
@@ -488,28 +446,174 @@ export default function DashboardScreen() {
                     </View>
                   );
                 })}
+                  </View>
+                </View>
               </View>
-            </View>
-          </View>
+            ) : (
+              // small screen: equity, calendar, weekly small, grade distribution (existing order)
+              <>
+                <View style={[styles.chartCard, { backgroundColor: colors.surface }]}> 
+                  <View style={styles.cardHeader}>
+                    <Text
+                      style={[
+                        styles.cardTitle,
+                        { color: colors.text, fontSize: 18 * scaleMultiplier },
+                      ]}
+                    >
+                      Equity Curve
+                    </Text>
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{trades.length} Trades</Text>
+                    </View>
+                  </View>
+                  <EquityChart series={equitySeries} height={chartHeight} startingBalance={accountStartingBalance} leftPadding={16} />
+                </View>
 
-          {isLargeScreen && (
-            <View style={styles.rightCol}>
-              <View
-                style={[styles.chartCard, { backgroundColor: colors.surface }]}
-              >
-                <ScrollView
-                  showsVerticalScrollIndicator={true}
-                  contentContainerStyle={{ paddingVertical: 8 }}
-                  style={{ maxHeight: 640 }}
-                >
-                  <WeeklySummaryPanel
+                <View style={[styles.chartCard, { backgroundColor: colors.surface }]}> 
+                  <View style={styles.cardHeader}>
+                    <Text
+                      style={[
+                        styles.cardTitle,
+                        { color: colors.text, fontSize: 18 * scaleMultiplier },
+                      ]}
+                    >
+                      Trading Calendar
+                    </Text>
+                    <Text
+                      style={[
+                        styles.cardSubtitle,
+                        { color: colors.subtext, fontSize: 13 * scaleMultiplier },
+                      ]}
+                    >
+                      Tap a day to view trades
+                    </Text>
+                  </View>
+                  <CalendarHeatmap
                     trades={filteredTrades}
-                    layout="vertical"
+                    onDayPress={(date) => setSelectedDate(date)}
+                    theme={mode}
                   />
-                </ScrollView>
+                </View>
+
+                {/* Small-screen Weekly Summary directly below calendar */}
+                {!isLargeScreen && (
+                  <View
+                    style={[
+                      styles.chartCard,
+                      { backgroundColor: colors.surface, marginTop: 8 },
+                    ]}
+                  >
+                    <WeeklySummaryPanelSmall trades={filteredTrades} />
+                  </View>
+                )}
+
+                {/* Grade Distribution */}
+                <View style={[styles.chartCard, { backgroundColor: colors.surface }]}> 
+                  <View style={styles.cardHeader}>
+                    <Text
+                      style={[
+                        styles.cardTitle,
+                        { color: colors.text, fontSize: 18 * scaleMultiplier },
+                      ]}
+                    >
+                      Grade Distribution
+                    </Text>
+                  </View>
+                  <View style={styles.gradeContainer}>
+                    {(["A+", "A", "B", "C", "D"] as const).map((grade) => {
+                      const count = filteredTrades.filter(
+                        (t) => t.grade === grade
+                      ).length;
+                      const total = filteredTrades.length || 1;
+                      const percentage = (count / total) * 100;
+
+                      return (
+                        <View key={grade} style={styles.gradeItem}>
+                          <View style={styles.gradeHeader}>
+                            <Text
+                              style={[styles.gradeLabel, { color: colors.text }]}
+                            >
+                              {grade}
+                            </Text>
+                            <Text
+                              style={[styles.gradeCount, { color: colors.subtext }]}
+                            >
+                              {count}
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.gradeBar,
+                              { backgroundColor: colors.neutral },
+                            ]}
+                          >
+                            <View
+                              style={[
+                                styles.gradeBarFill,
+                                {
+                                  width: `${percentage}%`,
+                                  backgroundColor: grade.startsWith("A")
+                                    ? colors.profitEnd
+                                    : grade === "B"
+                                    ? colors.highlight
+                                    : colors.lossEnd,
+                                },
+                              ]}
+                            />
+                          </View>
+                          <Text
+                            style={[styles.gradePercentage, { color: colors.subtext }]}
+                          >
+                            {percentage.toFixed(0)}%
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              </>
+            )}
+
+            {/* For large screens: Trading Calendar + Weekly Summary side-by-side */}
+            {isLargeScreen && (
+              <View style={{ flexDirection: "row", gap: 16 }}>
+                <View style={[styles.chartCard, { backgroundColor: colors.surface, flex: 2, height: calendarCardHeight }]}>
+                  <View style={styles.cardHeader}>
+                    <Text
+                      style={[
+                        styles.cardTitle,
+                        { color: colors.text, fontSize: 18 * scaleMultiplier },
+                      ]}
+                    >
+                      Trading Calendar
+                    </Text>
+                    <Text
+                      style={[
+                        styles.cardSubtitle,
+                        { color: colors.subtext, fontSize: 13 * scaleMultiplier },
+                      ]}
+                    >
+                      Tap a day to view trades
+                    </Text>
+                  </View>
+                  <CalendarHeatmap
+                    trades={filteredTrades}
+                    onDayPress={(date) => setSelectedDate(date)}
+                    theme={mode}
+                  />
+                </View>
+
+                <View style={[styles.chartCard, { backgroundColor: colors.surface, flex: 1, height: calendarCardHeight }]}>
+                  <ScrollView
+                    showsVerticalScrollIndicator={true}
+                    contentContainerStyle={{ paddingVertical: 8 }}
+                  >
+                    <WeeklySummaryPanel trades={filteredTrades} layout="vertical" />
+                  </ScrollView>
+                </View>
               </View>
-            </View>
-          )}
+            )}
+          </View>
         </View>
 
         {/* small-screen weekly panel has been moved above into the left column directly under the calendar */}
@@ -595,20 +699,7 @@ export default function DashboardScreen() {
               Add Trade
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.secondaryButton]}
-            onPress={() => (navigation as any).navigate("Journal")}
-          >
-            <Text style={styles.actionButtonIcon}>📝</Text>
-            <Text
-              style={[
-                styles.actionButtonText,
-                { color: colors.text, fontSize: 16 * scaleMultiplier },
-              ]}
-            >
-              Open Journal
-            </Text>
-          </TouchableOpacity>
+          {/* Removed: Open Journal button per request */}
         </View>
 
         {/* bottom spacer removed — ScreenLayout provides safe bottom padding */}
