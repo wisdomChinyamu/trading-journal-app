@@ -931,8 +931,8 @@ export function isScheduledDay(
 
 // How many scheduled-days gap to tolerate before considering the streak broken.
 // Default of 1 means: lastCompleted -> today with exactly 1 scheduled-day gap is treated as consecutive.
-// Module-level streak reset threshold. Default set to 1000 (can be overridden via settings).
-export let STREAK_RESET_THRESHOLD = 1000;
+// Module-level streak reset threshold. Default set to 1 (can be overridden via settings).
+export let STREAK_RESET_THRESHOLD = 1;
 
 export function setStreakResetThreshold(v: number) {
   STREAK_RESET_THRESHOLD = Number(v) || 0;

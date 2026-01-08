@@ -288,7 +288,7 @@ export default function AnalyticsScreen() {
               </View>
             </View>
           </View>
-          <WinRatePieChart trades={filteredTrades} />
+          <WinRatePieChart trades={timeFilteredTrades} />
         </View>
 
         <View style={styles.chartCard}>
@@ -298,12 +298,12 @@ export default function AnalyticsScreen() {
               <Text style={styles.chartActionText}>View All →</Text>
             </TouchableOpacity>
           </View>
-          <PerformanceByPairChart trades={filteredTrades} />
+          <PerformanceByPairChart trades={timeFilteredTrades} />
         </View>
 
         {/* Strategy win rate */}
         <View style={styles.chartCard}>
-          <StrategyWinRateList trades={filteredTrades} strategies={strategies} />
+          <StrategyWinRateList trades={timeFilteredTrades} strategies={strategies} />
         </View>
       </View>
 

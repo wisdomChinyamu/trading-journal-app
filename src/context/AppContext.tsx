@@ -43,7 +43,7 @@ const initialState: AppState = {
   routines: [], // Initialize routines
   accounts: [], // Initialize accounts
   uiScale: 'normal',
-  streakResetThreshold: 1000,
+  streakResetThreshold: 1,
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {

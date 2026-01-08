@@ -65,7 +65,7 @@ export default function ScreenLayout({
       bounces={true}
     >
       {children}
-      <View style={styles.bottomSpacing} />
+      <View style={{ height: tabBarHeight + 24 }} />
     </ScrollView>
   ) : (
     <View style={containerStyle}>{children}</View>

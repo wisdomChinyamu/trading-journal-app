@@ -88,6 +88,9 @@ export default function PerformanceByPairChart({
     return { value, y };
   });
 
+  const screenWidth = Dimensions.get("window").width;
+  const isSmallScreen = screenWidth <= 420;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.card }]}>
       {/* Header */}
@@ -190,7 +193,18 @@ export default function PerformanceByPairChart({
                 textAnchor="middle"
                 fontFamily={fontFamily}
               >
-                {bar.pair}
+                {(() => {
+                  try {
+                    const raw = String(bar.pair || "").replace(/\//g, "");
+                    if (isSmallScreen) {
+                      if (raw.length >= 4) return `${raw.charAt(0)}${raw.charAt(3)}`;
+                      return raw.slice(0, 2);
+                    }
+                    return bar.pair;
+                  } catch (e) {
+                    return bar.pair;
+                  }
+                })()}
               </SvgText>
 
               {/* Win rate category label */}

@@ -30,8 +30,14 @@ export default function EquityCurveChart({
   const [internalWidth, setInternalWidth] = useState(
     Math.min(1200, Math.max(320, screenWidth - 48))
   );
-  const height = typeof propHeight === "number" ? propHeight : 320;
+  // Ensure Y-axis (chart) height is always 3/4 of X-axis width (chartWidth)
+  // We compute internal padding-dependent chart width and force the overall
+  // SVG height so the inner chart area height == 0.75 * chartWidth.
   const basePadding = 40;
+  const paddingForCalc = basePadding;
+  const chartWidthForCalc = internalWidth - paddingForCalc * 2;
+  const computedChartHeight = Math.max(120, Math.round(chartWidthForCalc * 0.75));
+  const height = typeof propHeight === "number" ? Math.max(propHeight, paddingForCalc * 2 + computedChartHeight) : paddingForCalc * 2 + computedChartHeight;
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   // Helper to parse Firestore Timestamp / number / string / Date

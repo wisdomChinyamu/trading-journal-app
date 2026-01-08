@@ -189,8 +189,14 @@ export function generateEquityCurve(
   }>,
   initialCapital: number = 10000
 ): Array<{ date: Date; value: number }> {
+  // Prefer an explicit trade execution timestamp (tradeTime / date / executedAt)
   const withDates = trades
-    .map((t) => ({ t, date: toDate((t as any).createdAt) }))
+    .map((t) => ({
+      t,
+      date:
+        toDate((t as any).tradeTime) || toDate((t as any).date) ||
+        toDate((t as any).executedAt) || toDate((t as any).createdAt),
+    }))
     .filter((x) => x.date !== null) as { t: any; date: Date }[];
 
   const sortedTrades = [...withDates].sort((a, b) => a.date.getTime() - b.date.getTime());
