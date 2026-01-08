@@ -372,8 +372,8 @@ export default function DashboardScreen() {
             {/* Large-screen: Equity + Grade side-by-side; Small-screen: stacked */}
             {isLargeScreen ? (
               <View style={{ flexDirection: "row", gap: 16 }}>
-                <View style={[styles.chartCard, { backgroundColor: colors.surface, flex: 2 }]}>
-                  <View style={styles.cardHeader}>
+                <View style={[styles.chartCard, { backgroundColor: colors.surface, flex: 2, padding: 12, marginBottom: 12 }]}>
+                  <View style={[styles.cardHeader, { marginBottom: 8 }] }>
                     <Text
                       style={[
                         styles.cardTitle,
@@ -459,8 +459,8 @@ export default function DashboardScreen() {
             ) : (
               // small screen: equity, calendar, weekly small, grade distribution (existing order)
               <>
-                <View style={[styles.chartCard, { backgroundColor: colors.surface }]}> 
-                  <View style={styles.cardHeader}>
+                <View style={[styles.chartCard, { backgroundColor: colors.surface, padding: 12, marginBottom: 12 }]}> 
+                  <View style={[styles.cardHeader, { marginBottom: 8 }] }>
                     <Text
                       style={[
                         styles.cardTitle,
