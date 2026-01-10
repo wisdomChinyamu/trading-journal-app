@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]  # Change this if your main branch has a different name
 
+permissions:
+  contents: write
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -19,7 +22,7 @@ jobs:
         cache: 'npm'
         
     - name: Install dependencies
-      run: npm install
+      run: npm install --legacy-peer-deps
       
     - name: Build for production
       run: npm run build-web
