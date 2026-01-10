@@ -15,6 +15,12 @@ export default function PerformanceByPairChart({
   const { colors, fontFamily } = useTheme();
   const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
   const [tappedIndex, setTappedIndex] = React.useState<number | null>(null);
+  // Clear tapped tooltip after 3s
+  React.useEffect(() => {
+    if (tappedIndex === null) return;
+    const t = setTimeout(() => setTappedIndex(null), 3000);
+    return () => clearTimeout(t);
+  }, [tappedIndex]);
   const width = Dimensions.get("window").width - 32;
   const height = 280;
   const padding = { top: 30, right: 20, bottom: 60, left: 50 };
@@ -87,14 +93,6 @@ export default function PerformanceByPairChart({
       color,
     };
   });
-
-  // Clear tapped tooltip after 3s
-  React.useEffect(() => {
-    if (tappedIndex === null) return;
-    const t = setTimeout(() => setTappedIndex(null), 3000);
-    return () => clearTimeout(t);
-  }, [tappedIndex]);
-
   // Grid lines (5 horizontal lines)
   const gridLines = Array.from({ length: 5 }, (_, i) => {
     const value = (maxValue / 4) * (4 - i);
