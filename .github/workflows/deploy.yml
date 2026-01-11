@@ -23,12 +23,16 @@ jobs:
         
     - name: Install dependencies
       run: npm install --legacy-peer-deps
-      run: npm install
       
     - name: Build for production
       run: npm run build-web
       env:
         NODE_OPTIONS: "--max-old-space-size=4096"
+    
+    - name: Ensure .nojekyll file exists
+      run: |
+        touch dist/.nojekyll
+        echo ".nojekyll file created in dist directory"
         
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
