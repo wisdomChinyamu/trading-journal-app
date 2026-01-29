@@ -32,7 +32,7 @@ const AccountsScreen = () => {
   const originTab = (route as any)?.params?.origin;
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingAccount, setEditingAccount] = useState<TradingAccount | null>(
-    null
+    null,
   );
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<string | null>(null);
@@ -40,7 +40,7 @@ const AccountsScreen = () => {
   const handleCreateAccount = async (
     name: string,
     startingBalance: number,
-    type: "demo" | "live" = "demo"
+    type: "demo" | "live" = "demo",
   ) => {
     try {
       if (!state.user?.uid) {
@@ -54,7 +54,7 @@ const AccountsScreen = () => {
 
       if (state.user.uid !== currentUid) {
         console.warn(
-          `State user UID (${state.user.uid}) differs from auth.currentUser.uid (${currentUid}). Using authenticated UID.`
+          `State user UID (${state.user.uid}) differs from auth.currentUser.uid (${currentUid}). Using authenticated UID.`,
         );
       }
 
@@ -62,7 +62,7 @@ const AccountsScreen = () => {
         currentUid,
         name,
         startingBalance,
-        type
+        type,
       );
 
       // Refresh accounts list
@@ -85,7 +85,7 @@ const AccountsScreen = () => {
 
   const handleUpdateAccount = async (
     accountId: string,
-    updates: Partial<TradingAccount>
+    updates: Partial<TradingAccount>,
   ) => {
     try {
       await updateAccount(accountId, updates);
@@ -138,7 +138,8 @@ const AccountsScreen = () => {
     accountId: string,
     newBalance: number,
     type?: "deposit" | "withdrawal",
-    amount?: number
+    amount?: number,
+    transactionTime?: Date | string,
   ) => {
     try {
       await updateAccount(accountId, { currentBalance: newBalance });
@@ -151,7 +152,8 @@ const AccountsScreen = () => {
             accountId,
             type,
             amount,
-            newBalance
+            newBalance,
+            transactionTime,
           );
         } catch (err) {
           console.warn("Failed to persist transaction record", err);

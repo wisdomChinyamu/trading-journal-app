@@ -11,6 +11,7 @@ import { useAppContext } from "../hooks/useAppContext";
 import EquityCurveChart from "../components/EquityCurveChart";
 import StrategyWinRateList from "../components/StrategyWinRateList";
 import { getUserStrategies } from "../services/firebaseService";
+import { getAccountTransactions } from "../services/firebaseService";
 import AccountDropdown from "../components/AccountDropdown";
 import WinRatePieChart from "../components/WinRatePieChart";
 import PerformanceByPairChart from "../components/PerformanceByPairChart";
@@ -28,6 +29,7 @@ export default function AnalyticsScreen() {
   const [accountModalVisible, setAccountModalVisible] =
     useState<boolean>(false);
   const [strategies, setStrategies] = useState<any[]>([]);
+  const [accountTransactions, setAccountTransactions] = useState<any[]>([]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -44,11 +46,35 @@ export default function AnalyticsScreen() {
     };
   }, [state.user]);
 
+  // Fetch account transactions when account selection changes
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (
+          selectedAccountId &&
+          selectedAccountId !== "all" &&
+          state.user?.uid
+        ) {
+          const txns = await getAccountTransactions(selectedAccountId, 500);
+          if (mounted) setAccountTransactions(txns || []);
+        } else {
+          setAccountTransactions([]);
+        }
+      } catch (e) {
+        setAccountTransactions([]);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [selectedAccountId, state.user]);
+
   const filteredTrades = React.useMemo(() => {
     const base = state.trades || [];
     if (!selectedAccountId || selectedAccountId === "all") return base;
     return base.filter(
-      (t: any) => String(t.accountId || "") === String(selectedAccountId)
+      (t: any) => String(t.accountId || "") === String(selectedAccountId),
     );
   }, [state.trades, selectedAccountId]);
 
@@ -94,7 +120,7 @@ export default function AnalyticsScreen() {
       // sum starting balances when viewing all accounts
       return (state.accounts || []).reduce(
         (s, a) => s + Number(a.startingBalance || 0),
-        0
+        0,
       );
     }
     const acc = (state.accounts || []).find((a) => a.id === selectedAccountId);
@@ -110,8 +136,12 @@ export default function AnalyticsScreen() {
   };
 
   const totalTrades = timeFilteredTrades.length;
-  const winningTrades = timeFilteredTrades.filter((t) => t.result === "Win").length;
-  const losingTrades = timeFilteredTrades.filter((t) => t.result === "Loss").length;
+  const winningTrades = timeFilteredTrades.filter(
+    (t) => t.result === "Win",
+  ).length;
+  const losingTrades = timeFilteredTrades.filter(
+    (t) => t.result === "Loss",
+  ).length;
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -198,8 +228,8 @@ export default function AnalyticsScreen() {
                 {metrics.avgRR >= 2
                   ? "Excellent"
                   : metrics.avgRR >= 1.5
-                  ? "Good"
-                  : "Needs work"}
+                    ? "Good"
+                    : "Needs work"}
               </Text>
             </View>
           </View>
@@ -221,8 +251,8 @@ export default function AnalyticsScreen() {
                 {metrics.profitFactor >= 2
                   ? "Strong"
                   : metrics.profitFactor >= 1.5
-                  ? "Solid"
-                  : "Weak"}
+                    ? "Solid"
+                    : "Weak"}
               </Text>
             </View>
           </View>
@@ -263,11 +293,12 @@ export default function AnalyticsScreen() {
               <Text style={styles.chartBadgeText}>Cumulative P&L</Text>
             </View>
           </View>
-            <EquityCurveChart
-              trades={timeFilteredTrades}
-              startingBalance={accountStartingBalance}
-              height={340}
-            />
+          <EquityCurveChart
+            trades={timeFilteredTrades}
+            startingBalance={accountStartingBalance}
+            transactions={accountTransactions}
+            height={340}
+          />
         </View>
 
         <View style={styles.chartCard}>
@@ -303,7 +334,10 @@ export default function AnalyticsScreen() {
 
         {/* Strategy win rate */}
         <View style={styles.chartCard}>
-          <StrategyWinRateList trades={timeFilteredTrades} strategies={strategies} />
+          <StrategyWinRateList
+            trades={timeFilteredTrades}
+            strategies={strategies}
+          />
         </View>
       </View>
 
@@ -320,7 +354,7 @@ export default function AnalyticsScreen() {
           {Object.entries(metrics.performanceBySession).map(
             ([session, winRate]) => {
               const sessionTrades = filteredTrades.filter(
-                (t) => t.session === session
+                (t) => t.session === session,
               ).length;
               const sessionIcon =
                 session === "London" ? "🇬🇧" : session === "NY" ? "🇺🇸" : "🌏";
@@ -328,8 +362,8 @@ export default function AnalyticsScreen() {
                 winRate >= 60
                   ? "#4caf50"
                   : winRate >= 40
-                  ? "#00d4d4"
-                  : "#f44336";
+                    ? "#00d4d4"
+                    : "#f44336";
 
               return (
                 <View key={session} style={styles.sessionCard}>
@@ -379,13 +413,13 @@ export default function AnalyticsScreen() {
                       {winRate >= 60
                         ? "🔥 Hot"
                         : winRate >= 40
-                        ? "✓ Solid"
-                        : "⚠️ Focus Area"}
+                          ? "✓ Solid"
+                          : "⚠️ Focus Area"}
                     </Text>
                   </View>
                 </View>
               );
-            }
+            },
           )}
         </View>
       </View>
@@ -405,16 +439,16 @@ export default function AnalyticsScreen() {
             .slice(0, 5)
             .map(([pair, winRate], index) => {
               const pairTrades = filteredTrades.filter(
-                (t) => t.pair === pair
+                (t) => t.pair === pair,
               ).length;
               const rankColor =
                 index === 0
                   ? "#ffd700"
                   : index === 1
-                  ? "#c0c0c0"
-                  : index === 2
-                  ? "#cd7f32"
-                  : "#666";
+                    ? "#c0c0c0"
+                    : index === 2
+                      ? "#cd7f32"
+                      : "#666";
 
               return (
                 <View key={pair} style={styles.pairRow}>
@@ -469,7 +503,7 @@ export default function AnalyticsScreen() {
             <Text style={styles.insightTitle}>Best Session</Text>
             <Text style={styles.insightValue}>
               {Object.entries(metrics.performanceBySession).sort(
-                ([, a], [, b]) => b - a
+                ([, a], [, b]) => b - a,
               )[0]?.[0] || "N/A"}
             </Text>
           </View>
@@ -479,7 +513,7 @@ export default function AnalyticsScreen() {
             <Text style={styles.insightTitle}>Best Pair</Text>
             <Text style={styles.insightValue}>
               {Object.entries(metrics.performanceByPair).sort(
-                ([, a], [, b]) => b - a
+                ([, a], [, b]) => b - a,
               )[0]?.[0] || "N/A"}
             </Text>
           </View>

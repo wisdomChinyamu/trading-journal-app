@@ -20,16 +20,22 @@ interface EquityCurveChartProps {
   trades: Trade[];
   startingBalance?: number;
   height?: number;
+  transactions?: Array<{
+    transactionTime?: any;
+    amount: number;
+    type?: "deposit" | "withdrawal";
+  }>;
 }
 
 export default function EquityCurveChart({
   trades,
   startingBalance = 0,
   height: propHeight,
+  transactions,
 }: EquityCurveChartProps) {
   const screenWidth = Dimensions.get("window").width;
   const [internalWidth, setInternalWidth] = useState(
-    Math.min(1200, Math.max(320, screenWidth - 48))
+    Math.min(1200, Math.max(320, screenWidth - 48)),
   );
   // Ensure Y-axis (chart) height is always 1/2 of X-axis width (chartWidth)
   // We compute internal padding-dependent chart width and force the overall
@@ -37,7 +43,10 @@ export default function EquityCurveChart({
   const basePadding = 40;
   const paddingForCalc = basePadding;
   const chartWidthForCalc = internalWidth - paddingForCalc * 2;
-  const computedChartHeight = Math.max(120, Math.round(chartWidthForCalc * 0.5));
+  const computedChartHeight = Math.max(
+    120,
+    Math.round(chartWidthForCalc * 0.5),
+  );
   // Force the SVG height such that inner chart area height == 0.5 * chartWidth
   const height = paddingForCalc * 2 + computedChartHeight;
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -61,39 +70,64 @@ export default function EquityCurveChart({
     return isNaN(d.getTime()) ? null : d;
   };
 
-  // Calculate equity curve (account balance over time)
-  // Sort trades by tradeTime (when trade was taken) to ensure chronological ordering
-  const sortedTrades = [...trades].sort((a, b) => {
-    const dateA = parseDate((a as any).tradeTime ?? (a as any).createdAt) || new Date();
-    const dateB = parseDate((b as any).tradeTime ?? (b as any).createdAt) || new Date();
-    return dateA.getTime() - dateB.getTime();
+  // Build plotted equity from trades only (trade execution timestamps)
+  const tradeEvents = (trades || [])
+    .map((trade) => {
+      const rawDate = (trade as any).tradeTime ?? (trade as any).createdAt;
+      const pd = parseDate(rawDate) || new Date();
+      let pnl = 0;
+      if (trade.riskAmount) {
+        if (trade.result === "Win")
+          pnl = Number(trade.riskAmount) * Number(trade.riskToReward || 0);
+        else if (trade.result === "Loss") pnl = -Number(trade.riskAmount);
+        else pnl = 0;
+      } else {
+        if (trade.result === "Win") pnl = Number(trade.riskToReward || 0);
+        else if (trade.result === "Loss") pnl = -1;
+        else pnl = 0;
+      }
+      return { date: pd, value: pnl };
+    })
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  // Compute plotted equityPoints (cumulative using trades only)
+  let tradeEquity = startingBalance;
+  const equityPoints: { date: string; value: number }[] = [];
+  tradeEvents.forEach((ev) => {
+    tradeEquity += ev.value;
+    equityPoints.push({ date: ev.date.toISOString(), value: tradeEquity });
   });
 
-  let equity = startingBalance;
-  const equityPoints: { date: string; value: number }[] = [];
+  // Build account timeline (trades + transactions) for metrics: current balance, peak, drawdown
+  const accountEvents: Array<{ date: Date; delta: number }> = [];
+  // include trades as PnL deltas at trade times
+  tradeEvents.forEach((t) =>
+    accountEvents.push({ date: t.date, delta: t.value }),
+  );
+  // include transactions (deposits/withdrawals) but DO NOT include them in plotted series
+  if (transactions && Array.isArray(transactions)) {
+    (transactions as any[]).forEach((t) => {
+      const td =
+        parseDate(t.transactionTime) ||
+        parseDate((t as any).createdAt) ||
+        new Date();
+      const amt = Number((t as any).amount) || 0;
+      const signed =
+        (t as any).type === "withdrawal" ? -Math.abs(amt) : Math.abs(amt);
+      accountEvents.push({ date: td, delta: signed });
+    });
+  }
+  // sort by date ascending
+  accountEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-  sortedTrades.forEach((trade) => {
-    if (trade.riskAmount) {
-      // Use actual monetary values if riskAmount is available
-      if (trade.result === "Win") {
-        equity += trade.riskAmount * trade.riskToReward;
-      } else if (trade.result === "Loss") {
-        equity -= trade.riskAmount;
-      }
-    } else {
-      // Fall back to R:R ratio based calculation
-      if (trade.result === "Win") {
-        equity += trade.riskToReward;
-      } else if (trade.result === "Loss") {
-        equity -= 1;
-      }
-    }
-    // Prefer `tradeTime` (when trade occurred) falling back to `createdAt` (entry time)
-    const rawDate = (trade as any).tradeTime ?? (trade as any).createdAt;
-    const pd = parseDate(rawDate) || new Date();
-    equityPoints.push({
-      date: pd.toISOString(),
-      value: equity,
+  // compute account equity timeline
+  let accountBalanceRunning = startingBalance;
+  const accountPoints: { date: string; value: number }[] = [];
+  accountEvents.forEach((ev) => {
+    accountBalanceRunning += ev.delta;
+    accountPoints.push({
+      date: ev.date.toISOString(),
+      value: accountBalanceRunning,
     });
   });
 
@@ -105,11 +139,16 @@ export default function EquityCurveChart({
       const baselineTime = new Date(Math.max(0, firstDate.getTime() - 1));
       const baseValue = startingBalance || equityPoints[0].value || 1;
       if (Math.abs(equityPoints[0].value - baseValue) > 0.0001) {
-        equityPoints.unshift({ date: new Date(baselineTime).toISOString(), value: baseValue });
+        equityPoints.unshift({
+          date: new Date(baselineTime).toISOString(),
+          value: baseValue,
+        });
       } else {
         // If the first point already equals baseValue, ensure it's the earliest
         // by nudging its date slightly earlier.
-        equityPoints[0].date = new Date(Math.max(0, new Date(equityPoints[0].date).getTime() - 1)).toISOString();
+        equityPoints[0].date = new Date(
+          Math.max(0, new Date(equityPoints[0].date).getTime() - 1),
+        ).toISOString();
       }
     } catch (e) {}
   }
@@ -165,8 +204,17 @@ export default function EquityCurveChart({
       pointCount === 1
         ? padding + chartWidth / 2
         : padding + index * pointSpacing;
-    const y = height - padding - ((point.value - plotMinValue) / plotRange) * chartHeight;
-    return { x, y, value: point.value, date: point.date, rawValue: (equityPoints[index]?.value ?? baselineValue) };
+    const y =
+      height -
+      padding -
+      ((point.value - plotMinValue) / plotRange) * chartHeight;
+    return {
+      x,
+      y,
+      value: point.value,
+      date: point.date,
+      rawValue: equityPoints[index]?.value ?? baselineValue,
+    };
   });
 
   const points = mappedPoints.map((p) => `${p.x},${p.y}`).join(" ");
@@ -189,7 +237,7 @@ export default function EquityCurveChart({
         y2={y}
         stroke="rgba(255,255,255,0.06)"
         strokeWidth="1"
-      />
+      />,
     );
   }
 
@@ -197,18 +245,22 @@ export default function EquityCurveChart({
   const { width } = Dimensions.get("window");
   const isSmallScreen = width < 768;
 
-  const finalEquity = equityPoints[equityPoints.length - 1]?.value || 0;
+  // For displayed metrics (current balance, peak, drawdown) use the account timeline
+  const finalEquity =
+    accountPoints.length > 0
+      ? accountPoints[accountPoints.length - 1].value
+      : startingBalance;
   const isProfit = finalEquity >= 0;
 
-  // Compute max drawdown (peak-to-trough)
+  // Compute max drawdown (peak-to-trough) from accountPoints
   let peak = -Infinity;
   let maxDrawdown = 0;
-  equityPoints.forEach((p) => {
+  accountPoints.forEach((p) => {
     if (p.value > peak) peak = p.value;
     const dd = peak - p.value;
     if (dd > maxDrawdown) maxDrawdown = dd;
   });
-  const rawPeak = Math.max(...rawValues, 0);
+  const rawPeak = Math.max(...(accountPoints.map((p) => p.value) || [0]), 0);
   const drawdownPercent = rawPeak > 0 ? (maxDrawdown / rawPeak) * 100 : 0;
 
   return (
@@ -258,8 +310,13 @@ export default function EquityCurveChart({
                   onMouseLeave: () => setSelectedIndex(null),
                   onMouseMove: (e: any) => {
                     try {
-                      const offsetX = e.nativeEvent.offsetX ?? e.nativeEvent.clientX;
-                      const targetWidth = (e.nativeEvent.target && e.nativeEvent.target.clientWidth) || e.currentTarget?.clientWidth || 1;
+                      const offsetX =
+                        e.nativeEvent.offsetX ?? e.nativeEvent.clientX;
+                      const targetWidth =
+                        (e.nativeEvent.target &&
+                          e.nativeEvent.target.clientWidth) ||
+                        e.currentTarget?.clientWidth ||
+                        1;
                       const ratio = offsetX / targetWidth;
                       const xInView = padding + ratio * chartWidth;
                       let nearest = 0;
@@ -285,9 +342,17 @@ export default function EquityCurveChart({
           {plotMinValue < 0 && (
             <Line
               x1={padding}
-              y1={height - padding - ((0 - plotMinValue) / plotRange) * chartHeight}
+              y1={
+                height -
+                padding -
+                ((0 - plotMinValue) / plotRange) * chartHeight
+              }
               x2={internalWidth - padding}
-              y2={height - padding - ((0 - plotMinValue) / plotRange) * chartHeight}
+              y2={
+                height -
+                padding -
+                ((0 - plotMinValue) / plotRange) * chartHeight
+              }
               stroke="#f44336"
               strokeWidth="1"
               strokeDasharray="4,4"
@@ -352,72 +417,107 @@ export default function EquityCurveChart({
             );
           })}
 
-          {selectedIndex !== null && mappedPoints[selectedIndex] && (() => {
-            const p = mappedPoints[selectedIndex];
-            const prev = mappedPoints[selectedIndex - 1];
-            // Show monetary delta based on actual values; for the first point
-            // display the real starting balance in the tooltip instead of the
-            // normalized '1' value.
-            const delta = prev ? p.value - prev.value : 0;
-            const tipW = 160;
-            const tipH = 48;
-            const margin = 12;
-            const x = Math.max(
-              padding + margin,
-              Math.min(internalWidth - padding - tipW - margin, p.x - tipW / 2)
-            );
-            const y = Math.max(padding, Math.min(p.y - tipH - 8, height - padding - tipH - margin));
-            const deltaStr = `${delta >= 0 ? "+" : ""}${Math.abs(delta) >= 1000 || Math.abs(delta) <= -1000 ? delta.toLocaleString() : Math.abs(delta).toFixed(2)}`;
-            const displayMain = selectedIndex === 0 ? (startingBalance >= 1000 || startingBalance <= -1000 ? startingBalance.toLocaleString() : startingBalance.toFixed(2)) : (delta === 0 ? (p.value >= 1000 || p.value <= -1000 ? p.value.toLocaleString() : p.value.toFixed(2)) : deltaStr);
-            return (
-              <G key={`tooltip-${selectedIndex}`}>
-                <Rect
-                  x={x}
-                  y={y}
-                  width={tipW}
-                  height={tipH}
-                  rx={8}
-                  fill="#0d0d0d"
-                  opacity={0.98}
-                  stroke="#00d4d4"
-                  strokeWidth={1}
-                />
-                <SvgText x={x + 10} y={y + 18} fontSize="13" fill="#fff" fontFamily={fontFamily}>
-                  {displayMain}
-                </SvgText>
-                <SvgText x={x + 10} y={y + 34} fontSize="11" fill="#9aa" fontFamily={fontFamily}>
-                  {(() => {
-                    try {
-                      const d = new Date(p.date);
-                      return isNaN(d.getTime()) ? String(p.date) : d.toLocaleString();
-                    } catch (e) {
-                      return String(p.date);
-                    }
-                  })()}
-                </SvgText>
-              </G>
-            );
-          })()}
+          {selectedIndex !== null &&
+            mappedPoints[selectedIndex] &&
+            (() => {
+              const p = mappedPoints[selectedIndex];
+              const prev = mappedPoints[selectedIndex - 1];
+              // Show monetary delta based on actual values; for the first point
+              // display the real starting balance in the tooltip instead of the
+              // normalized '1' value.
+              const delta = prev ? p.value - prev.value : 0;
+              const tipW = 160;
+              const tipH = 48;
+              const margin = 12;
+              const x = Math.max(
+                padding + margin,
+                Math.min(
+                  internalWidth - padding - tipW - margin,
+                  p.x - tipW / 2,
+                ),
+              );
+              const y = Math.max(
+                padding,
+                Math.min(p.y - tipH - 8, height - padding - tipH - margin),
+              );
+              const deltaStr = `${delta >= 0 ? "+" : ""}${Math.abs(delta) >= 1000 || Math.abs(delta) <= -1000 ? delta.toLocaleString() : Math.abs(delta).toFixed(2)}`;
+              const displayMain =
+                selectedIndex === 0
+                  ? startingBalance >= 1000 || startingBalance <= -1000
+                    ? startingBalance.toLocaleString()
+                    : startingBalance.toFixed(2)
+                  : delta === 0
+                    ? p.value >= 1000 || p.value <= -1000
+                      ? p.value.toLocaleString()
+                      : p.value.toFixed(2)
+                    : deltaStr;
+              return (
+                <G key={`tooltip-${selectedIndex}`}>
+                  <Rect
+                    x={x}
+                    y={y}
+                    width={tipW}
+                    height={tipH}
+                    rx={8}
+                    fill="#0d0d0d"
+                    opacity={0.98}
+                    stroke="#00d4d4"
+                    strokeWidth={1}
+                  />
+                  <SvgText
+                    x={x + 10}
+                    y={y + 18}
+                    fontSize="13"
+                    fill="#fff"
+                    fontFamily={fontFamily}
+                  >
+                    {displayMain}
+                  </SvgText>
+                  <SvgText
+                    x={x + 10}
+                    y={y + 34}
+                    fontSize="11"
+                    fill="#9aa"
+                    fontFamily={fontFamily}
+                  >
+                    {(() => {
+                      try {
+                        const d = new Date(p.date);
+                        return isNaN(d.getTime())
+                          ? String(p.date)
+                          : d.toLocaleString();
+                      } catch (e) {
+                        return String(p.date);
+                      }
+                    })()}
+                  </SvgText>
+                </G>
+              );
+            })()}
         </Svg>
       </View>
 
       {/* Stats Footer */}
-        <View style={styles.statsFooter}>
+      <View style={styles.statsFooter}>
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Trades</Text>
-          <Text style={styles.statValue}>{Math.max(0, equityPoints.length - 1)}</Text>
+          <Text style={styles.statValue}>
+            {Math.max(0, equityPoints.length - 1)}
+          </Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Peak</Text>
           <Text style={[styles.statValue, { color: "#4caf50" }]}>
-            {isSmallScreen && Math.abs(rawPeak) > 999.99 ? formatCompactNumber(rawPeak) : rawPeak.toFixed(2)}
+            {isSmallScreen && Math.abs(rawPeak) > 999.99
+              ? formatCompactNumber(rawPeak)
+              : rawPeak.toFixed(2)}
           </Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Drawdown</Text>
-          <Text style={[styles.statValue, { color: "#f44336" }]}> 
+          <Text style={[styles.statValue, { color: "#f44336" }]}>
             {maxDrawdown
               ? `-${isSmallScreen && Math.abs(maxDrawdown) > 999.99 ? formatCompactNumber(maxDrawdown) : maxDrawdown.toFixed(2)} (${drawdownPercent.toFixed(1)}%)`
               : "0.00"}
@@ -432,7 +532,9 @@ export default function EquityCurveChart({
               { color: isProfit ? "#4caf50" : "#f44336" },
             ]}
           >
-            {isSmallScreen && Math.abs(finalEquity) > 999.99 ? formatCompactNumber(finalEquity) : finalEquity.toFixed(2)}
+            {isSmallScreen && Math.abs(finalEquity) > 999.99
+              ? formatCompactNumber(finalEquity)
+              : finalEquity.toFixed(2)}
           </Text>
         </View>
       </View>

@@ -21,6 +21,7 @@ import TradeDetailScreen from "../screens/TradeDetailScreen";
 import AddTradeScreen from "../screens/AddTradeScreen";
 import ManageProfileScreen from "../screens/ManageProfileScreen";
 import ManageStrategyScreen from "../screens/ManageStrategyScreen";
+import NotesScreen from "../screens/NotesScreen";
 
 const Tab = createBottomTabNavigator();
 
@@ -28,10 +29,31 @@ const Tab = createBottomTabNavigator();
 const tabIcons: Record<string, { active: string; inactive: string }> = {
   Dashboard: { active: "📊", inactive: "📊" },
   Journal: { active: "📓", inactive: "📓" },
+  Notes: { active: "📝", inactive: "📝" },
   Analytics: { active: "📈", inactive: "📈" },
   Routine: { active: "✅", inactive: "✅" },
   Settings: { active: "⚙️", inactive: "⚙️" },
 };
+function NotesStack() {
+  return (
+    <Stack.Navigator screenOptions={headerOptions}>
+      <Stack.Screen
+        name="NotesMain"
+        component={NotesScreen}
+        options={{
+          title: "Notes",
+          headerLeft: () => (
+            <View style={styles.headerLeftContainer}>
+              <View style={styles.headerBadge}>
+                <Text style={styles.headerBadgeText}>📝</Text>
+              </View>
+            </View>
+          ),
+        }}
+      />
+    </Stack.Navigator>
+  );
+}
 
 // Custom tab bar icon component
 const TabIcon = ({
@@ -288,6 +310,14 @@ export function TabNavigator() {
         options={{
           tabBarLabel: "Journal",
           tabBarAccessibilityLabel: "Journal tab",
+        }}
+      />
+      <Tab.Screen
+        name="Notes"
+        component={NotesStack}
+        options={{
+          tabBarLabel: "Notes",
+          tabBarAccessibilityLabel: "Notes tab",
         }}
       />
       <Tab.Screen

@@ -1,3 +1,90 @@
+// ==================== NOTES (Notion-style) ====================
+import { NotePage, NoteBlock } from "../types/notes";
+
+// Pages
+export async function createNotePage(userId: string, page: Partial<NotePage>) {
+  if (!isFirebaseInitialized()) return null;
+  const payload = removeUndefinedFields({
+    ...page,
+    ownerId: userId,
+    createdAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+  });
+  const docRef = await addDoc(collection(db, `users/${userId}/pages`), payload);
+  return docRef.id;
+}
+
+export async function updateNotePage(
+  userId: string,
+  pageId: string,
+  updates: Partial<NotePage>,
+) {
+  if (!isFirebaseInitialized()) return;
+  const filtered = removeUndefinedFields({
+    ...updates,
+    updatedAt: Timestamp.now(),
+  });
+  await updateDoc(doc(db, `users/${userId}/pages`, pageId), filtered);
+}
+
+export async function deleteNotePage(userId: string, pageId: string) {
+  if (!isFirebaseInitialized()) return;
+  await deleteDoc(doc(db, `users/${userId}/pages`, pageId));
+}
+
+export async function listNotePages(userId: string) {
+  if (!isFirebaseInitialized()) return [];
+  const q = query(collection(db, `users/${userId}/pages`), orderBy("order"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ ...d.data(), pageId: d.id }));
+}
+
+// Blocks
+export async function createNoteBlock(
+  userId: string,
+  block: Partial<NoteBlock>,
+) {
+  if (!isFirebaseInitialized()) return null;
+  const payload = removeUndefinedFields({
+    ...block,
+    createdAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+  });
+  const docRef = await addDoc(
+    collection(db, `users/${userId}/blocks`),
+    payload,
+  );
+  return docRef.id;
+}
+
+export async function updateNoteBlock(
+  userId: string,
+  blockId: string,
+  updates: Partial<NoteBlock>,
+) {
+  if (!isFirebaseInitialized()) return;
+  const filtered = removeUndefinedFields({
+    ...updates,
+    updatedAt: Timestamp.now(),
+  });
+  await updateDoc(doc(db, `users/${userId}/blocks`, blockId), filtered);
+}
+
+export async function deleteNoteBlock(userId: string, blockId: string) {
+  if (!isFirebaseInitialized()) return;
+  await deleteDoc(doc(db, `users/${userId}/blocks`, blockId));
+}
+
+export async function listNoteBlocks(userId: string, pageId: string) {
+  if (!isFirebaseInitialized()) return [];
+  const q = query(
+    collection(db, `users/${userId}/blocks`),
+    where("pageId", "==", pageId),
+    orderBy("order"),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ ...d.data(), blockId: d.id }));
+}
 import { db } from "../config/firebase";
 import {
   collection,
@@ -77,7 +164,7 @@ export async function signUp(email: string, password: string) {
     const userCredential = await createUserWithEmailAndPassword(
       auth,
       email,
-      password
+      password,
     );
     return userCredential.user;
   } catch (error) {
@@ -97,7 +184,7 @@ export async function login(email: string, password: string) {
     const userCredential = await signInWithEmailAndPassword(
       auth,
       email,
-      password
+      password,
     );
     return userCredential.user;
   } catch (error) {
@@ -126,7 +213,7 @@ export async function resetPassword(email: string) {
     // Check if Firebase Auth is properly initialized
     if (!isFirebaseAuthInitialized()) {
       console.warn(
-        "Firebase Auth not properly initialized. Skipping password reset."
+        "Firebase Auth not properly initialized. Skipping password reset.",
       );
       return;
     }
@@ -142,7 +229,7 @@ export function observeAuthState(callback: (user: any) => void) {
   // Check if Firebase Auth is properly initialized
   if (!isFirebaseAuthInitialized()) {
     console.warn(
-      "Firebase Auth not properly initialized. Skipping auth state change listener."
+      "Firebase Auth not properly initialized. Skipping auth state change listener.",
     );
     return () => {}; // Return noop unsubscribe function
   }
@@ -160,12 +247,12 @@ export async function createUserProfile(
     email?: string;
     timezone?: string;
     displayPreference?: string;
-  }
+  },
 ) {
   try {
     if (!isFirebaseInitialized()) {
       console.warn(
-        "Firebase not properly initialized. Skipping createUserProfile."
+        "Firebase not properly initialized. Skipping createUserProfile.",
       );
       return;
     }
@@ -196,13 +283,13 @@ export async function createAccount(
   userId: string,
   name: string,
   startingBalance: number,
-  accountType: "demo" | "live" = "demo"
+  accountType: "demo" | "live" = "demo",
 ) {
   try {
     // Check if Firebase is properly initialized
     if (!isFirebaseInitialized()) {
       console.warn(
-        "Firebase not properly initialized. Skipping account creation."
+        "Firebase not properly initialized. Skipping account creation.",
       );
       return null;
     }
@@ -221,7 +308,7 @@ export async function createAccount(
 
     if (userId && userId !== currentUid) {
       console.warn(
-        `createAccount called with userId=${userId} but auth.currentUser.uid=${currentUid}. Using authenticated UID.`
+        `createAccount called with userId=${userId} but auth.currentUser.uid=${currentUid}. Using authenticated UID.`,
       );
     }
 
@@ -248,13 +335,13 @@ export async function createAccount(
 
 export async function updateAccount(
   accountId: string,
-  updates: Partial<TradingAccount>
+  updates: Partial<TradingAccount>,
 ) {
   try {
     // Check if Firebase is properly initialized
     if (!isFirebaseInitialized()) {
       console.warn(
-        "Firebase not properly initialized. Skipping account update."
+        "Firebase not properly initialized. Skipping account update.",
       );
       return;
     }
@@ -278,24 +365,42 @@ export async function addAccountTransaction(
   accountId: string,
   type: "deposit" | "withdrawal",
   amount: number,
-  balanceAfter: number
+  balanceAfter: number,
+  transactionTime?: Date | number | string,
 ) {
   try {
     if (!isFirebaseInitialized()) {
       console.warn(
-        "Firebase not properly initialized. Skipping addAccountTransaction."
+        "Firebase not properly initialized. Skipping addAccountTransaction.",
       );
       return null;
     }
 
-    const payload = removeUndefinedFields({
+    const payloadAny: any = {
       userId,
       accountId,
       type,
       amount,
       balanceAfter,
       createdAt: Timestamp.now(),
-    });
+    };
+
+    // If caller supplied a transactionTime (when the deposit/withdrawal actually occurred),
+    // store it as `transactionTime` as a Firestore Timestamp so clients can use it for chronological ordering.
+    if (transactionTime) {
+      try {
+        let tt: any = transactionTime;
+        if (typeof tt === "number") tt = new Date(tt);
+        if (typeof tt === "string") tt = new Date(tt);
+        if (tt instanceof Date && !isNaN(tt.getTime())) {
+          payloadAny.transactionTime = Timestamp.fromDate(tt);
+        }
+      } catch (e) {
+        // ignore malformed times
+      }
+    }
+
+    const payload = removeUndefinedFields(payloadAny);
 
     const docRef = await addDoc(collection(db, "transactions"), payload);
     return docRef.id;
@@ -307,12 +412,12 @@ export async function addAccountTransaction(
 
 export async function getAccountTransactions(
   accountId: string,
-  maxResults: number = 10
+  maxResults: number = 10,
 ) {
   try {
     if (!isFirebaseInitialized()) {
       console.warn(
-        "Firebase not properly initialized. Returning empty transactions."
+        "Firebase not properly initialized. Returning empty transactions.",
       );
       return [];
     }
@@ -339,19 +444,36 @@ export async function getAccountTransactions(
       where("accountId", "==", accountId),
       where("userId", "==", auth.currentUser?.uid), // Additional safety check
       orderBy("createdAt", "desc"),
-      limit(maxResults)
+      limit(maxResults),
     );
 
     try {
       const snapshot = await getDocs(q);
       if (snapshot && snapshot.docs && snapshot.docs.length > 0) {
-        return snapshot.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-          createdAt: d.data().createdAt?.toDate
-            ? d.data().createdAt.toDate()
-            : d.data().createdAt || new Date(),
-        }));
+        const mapped = snapshot.docs.map((d) => {
+          const data: any = d.data();
+          return {
+            id: d.id,
+            ...data,
+            createdAt: data.createdAt?.toDate
+              ? data.createdAt.toDate()
+              : data.createdAt || new Date(),
+            transactionTime: data.transactionTime?.toDate
+              ? data.transactionTime.toDate()
+              : data.transactionTime || null,
+          };
+        });
+        // Sort client-side by transactionTime (if present) falling back to createdAt
+        mapped.sort((a: any, b: any) => {
+          const ta = a.transactionTime
+            ? new Date(a.transactionTime).getTime()
+            : new Date(a.createdAt).getTime();
+          const tb = b.transactionTime
+            ? new Date(b.transactionTime).getTime()
+            : new Date(b.createdAt).getTime();
+          return tb - ta; // desc
+        });
+        return mapped.slice(0, maxResults);
       }
     } catch (err: any) {
       const msg = err?.message || String(err);
@@ -371,7 +493,7 @@ export async function getAccountTransactions(
           const fallbackQ = query(
             collection(db, "transactions"),
             orderBy("createdAt", "desc"),
-            limit(fallbackLimit)
+            limit(fallbackLimit),
           );
           const fallbackSnap = await getDocs(fallbackQ);
           const filtered = fallbackSnap.docs
@@ -395,7 +517,19 @@ export async function getAccountTransactions(
               createdAt: d.createdAt?.toDate
                 ? d.createdAt.toDate()
                 : d.createdAt || new Date(),
-            }));
+              transactionTime: d.transactionTime?.toDate
+                ? d.transactionTime.toDate()
+                : d.transactionTime || null,
+            }))
+            .sort((a: any, b: any) => {
+              const ta = a.transactionTime
+                ? new Date(a.transactionTime).getTime()
+                : new Date(a.createdAt).getTime();
+              const tb = b.transactionTime
+                ? new Date(b.transactionTime).getTime()
+                : new Date(b.createdAt).getTime();
+              return tb - ta;
+            });
 
           return filtered;
         } catch (fallbackErr) {
@@ -413,7 +547,7 @@ export async function getAccountTransactions(
       collection(db, "transactions"),
       where("userId", "==", auth.currentUser?.uid), // Ensure we only get user's own transactions
       orderBy("createdAt", "desc"),
-      limit(Math.max(maxResults * 3, 50))
+      limit(Math.max(maxResults * 3, 50)),
     );
     const broadSnap = await getDocs(broadQ);
     const candidates = broadSnap.docs
@@ -443,12 +577,28 @@ export async function getAccountTransactions(
   }
 }
 
+export async function deleteAccountTransaction(transactionId: string) {
+  try {
+    if (!isFirebaseInitialized()) {
+      console.warn(
+        "Firebase not properly initialized. Skipping transaction deletion.",
+      );
+      return;
+    }
+
+    await deleteDoc(doc(db, "transactions", transactionId));
+  } catch (error) {
+    console.error("Error deleting account transaction:", error);
+    throw error;
+  }
+}
+
 export async function deleteAccount(accountId: string) {
   try {
     // Check if Firebase is properly initialized
     if (!isFirebaseInitialized()) {
       console.warn(
-        "Firebase not properly initialized. Skipping account deletion."
+        "Firebase not properly initialized. Skipping account deletion.",
       );
       return;
     }
@@ -461,13 +611,13 @@ export async function deleteAccount(accountId: string) {
 }
 
 export async function getUserAccounts(
-  userId: string
+  userId: string,
 ): Promise<TradingAccount[]> {
   try {
     // Check if Firebase is properly initialized
     if (!isFirebaseInitialized()) {
       console.warn(
-        "Firebase not properly initialized. Returning empty accounts array."
+        "Firebase not properly initialized. Returning empty accounts array.",
       );
       return [];
     }
@@ -494,7 +644,7 @@ export async function getUserAccounts(
 export async function createStrategy(
   userId: string,
   name: string,
-  checklist: ChecklistItem[]
+  checklist: ChecklistItem[],
 ) {
   try {
     const strategyData = removeUndefinedFields({
@@ -515,7 +665,7 @@ export async function createStrategy(
 
 export async function updateStrategy(
   strategyId: string,
-  updates: Partial<Strategy>
+  updates: Partial<Strategy>,
 ) {
   try {
     await updateDoc(doc(db, "strategies", strategyId), {
@@ -546,14 +696,14 @@ export async function getUserStrategies(userId: string): Promise<Strategy[]> {
   try {
     if (!isFirebaseInitialized()) {
       console.warn(
-        "Firebase not properly initialized. Returning empty strategies."
+        "Firebase not properly initialized. Returning empty strategies.",
       );
       return [];
     }
 
     const q = query(
       collection(db, "strategies"),
-      where("userId", "==", userId)
+      where("userId", "==", userId),
     );
 
     const querySnapshot = await getDocs(q);
@@ -562,7 +712,7 @@ export async function getUserStrategies(userId: string): Promise<Strategy[]> {
         ({
           id: doc.id,
           ...doc.data(),
-        } as Strategy)
+        }) as Strategy,
     );
   } catch (error) {
     console.error("Error fetching user strategies:", error);
@@ -573,12 +723,12 @@ export async function getUserStrategies(userId: string): Promise<Strategy[]> {
 // ==================== CHECKLIST TEMPLATE ====================
 
 export async function getOrCreateChecklistTemplate(
-  userId: string
+  userId: string,
 ): Promise<ChecklistTemplate> {
   try {
     const q = query(
       collection(db, "checklist_template"),
-      where("userId", "==", userId)
+      where("userId", "==", userId),
     );
     const snapshot = await getDocs(q);
 
@@ -636,7 +786,7 @@ export async function getOrCreateChecklistTemplate(
 
       const docRef = await addDoc(
         collection(db, "checklist_template"),
-        templateData
+        templateData,
       );
 
       const newDoc = await getDoc(doc(db, "checklist_template", docRef.id));
@@ -666,7 +816,7 @@ export async function getOrCreateChecklistTemplate(
 
 export async function updateChecklistTemplate(
   templateId: string,
-  items: ChecklistItem[]
+  items: ChecklistItem[],
 ) {
   try {
     const template = await getDoc(doc(db, "checklist_template", templateId));
@@ -686,7 +836,7 @@ export async function updateChecklistTemplate(
 
 export async function addChecklistItem(
   templateId: string,
-  item: Omit<ChecklistItem, "id">
+  item: Omit<ChecklistItem, "id">,
 ) {
   try {
     const template = await getDoc(doc(db, "checklist_template", templateId));
@@ -711,14 +861,14 @@ export async function addChecklistItem(
 
 export async function updateChecklistItem(
   templateId: string,
-  item: ChecklistItem
+  item: ChecklistItem,
 ) {
   try {
     const template = await getDoc(doc(db, "checklist_template", templateId));
     if (!template.exists()) throw new Error("Template not found");
 
     const items = (template.data().items || []).map((i: ChecklistItem) =>
-      i.id === item.id ? item : i
+      i.id === item.id ? item : i,
     );
 
     const updateData = removeUndefinedFields({
@@ -739,7 +889,7 @@ export async function deleteChecklistItem(templateId: string, itemId: string) {
     if (!template.exists()) throw new Error("Template not found");
 
     const items = (template.data().items || []).filter(
-      (i: ChecklistItem) => i.id !== itemId
+      (i: ChecklistItem) => i.id !== itemId,
     );
 
     const updateData = removeUndefinedFields({
@@ -758,7 +908,7 @@ export async function deleteChecklistItem(templateId: string, itemId: string) {
 
 export async function addPsychologyLog(
   userId: string,
-  logData: Omit<PsychologyLog, "id">
+  logData: Omit<PsychologyLog, "id">,
 ) {
   try {
     const filteredLogData = removeUndefinedFields({
@@ -770,7 +920,7 @@ export async function addPsychologyLog(
 
     const docRef = await addDoc(
       collection(db, "psychology_logs"),
-      filteredLogData
+      filteredLogData,
     );
     return docRef.id;
   } catch (error) {
@@ -780,12 +930,12 @@ export async function addPsychologyLog(
 }
 
 export async function getUserPsychologyLogs(
-  userId: string
+  userId: string,
 ): Promise<PsychologyLog[]> {
   try {
     const q = query(
       collection(db, "psychology_logs"),
-      where("userId", "==", userId)
+      where("userId", "==", userId),
     );
     const snapshot = await getDocs(q);
     return snapshot.docs.map(
@@ -793,7 +943,7 @@ export async function getUserPsychologyLogs(
         ({
           ...doc.data(),
           id: doc.id,
-        } as PsychologyLog)
+        }) as PsychologyLog,
     );
   } catch (error) {
     console.error("Error fetching psychology logs:", error);
@@ -840,7 +990,7 @@ export async function deleteTrade(tradeId: string) {
     // Guard against uninitialized Firebase (fallback in config sets empty objects)
     if (!db || (typeof db === "object" && Object.keys(db).length === 0)) {
       throw new Error(
-        "Firebase not initialized. Missing Firebase configuration (EXPO_PUBLIC_FIREBASE_* env vars)."
+        "Firebase not initialized. Missing Firebase configuration (EXPO_PUBLIC_FIREBASE_* env vars).",
       );
     }
     await deleteDoc(doc(db, "trades", tradeId));
@@ -874,7 +1024,7 @@ export async function getUserProfile(userId: string) {
   try {
     if (!isFirebaseInitialized()) {
       console.warn(
-        "Firebase not properly initialized. Returning null profile."
+        "Firebase not properly initialized. Returning null profile.",
       );
       return null;
     }
@@ -903,10 +1053,15 @@ export async function getUserProfile(userId: string) {
 export async function updateUserProfile(userId: string, updates: any) {
   try {
     if (!isFirebaseInitialized()) {
-      console.warn("Firebase not properly initialized. Skipping updateUserProfile.");
+      console.warn(
+        "Firebase not properly initialized. Skipping updateUserProfile.",
+      );
       return null;
     }
-    const filtered = removeUndefinedFields({ ...updates, updatedAt: Timestamp.now() });
+    const filtered = removeUndefinedFields({
+      ...updates,
+      updatedAt: Timestamp.now(),
+    });
     await updateDoc(doc(db, "users", userId), filtered);
     return true;
   } catch (error) {
@@ -920,7 +1075,7 @@ export async function updateUserProfile(userId: string, updates: any) {
 // Helper: return true if given date is a scheduled day for the routine
 export function isScheduledDay(
   date: Date,
-  schedule: "weekday" | "weekend" | "both"
+  schedule: "weekday" | "weekend" | "both",
 ) {
   const d = new Date(date);
   const day = d.getDay();
@@ -942,7 +1097,7 @@ export function setStreakResetThreshold(v: number) {
 export function countScheduledDaysBetween(
   startDate: Date,
   endDate: Date,
-  schedule: "weekday" | "weekend" | "both"
+  schedule: "weekday" | "weekend" | "both",
 ) {
   const s = new Date(startDate);
   s.setHours(0, 0, 0, 0);
@@ -961,7 +1116,7 @@ export function countScheduledDaysBetween(
 export async function createRoutine(
   userId: string,
   name: string,
-  schedule: "weekday" | "weekend" | "both" = "both"
+  schedule: "weekday" | "weekend" | "both" = "both",
 ) {
   try {
     const routineData = removeUndefinedFields({
@@ -1019,7 +1174,7 @@ export async function getRoutines(userId: string): Promise<Routine[]> {
 
 export async function updateRoutine(
   routineId: string,
-  updates: Partial<Routine>
+  updates: Partial<Routine>,
 ) {
   try {
     const filteredUpdates = removeUndefinedFields({
@@ -1047,7 +1202,7 @@ export async function deleteRoutine(routineId: string) {
 
 export async function addRoutineItem(
   routineId: string,
-  item: Omit<RoutineItem, "id">
+  item: Omit<RoutineItem, "id">,
 ) {
   try {
     // Create a new item with proper ID
@@ -1088,7 +1243,7 @@ export async function addRoutineItem(
 export async function updateRoutineItem(
   routineId: string,
   itemId: string,
-  updates: Partial<RoutineItem>
+  updates: Partial<RoutineItem>,
 ) {
   try {
     const routineRef = doc(db, "routines", routineId);
@@ -1100,7 +1255,7 @@ export async function updateRoutineItem(
 
     const routine = routineDoc.data();
     const updatedItems = routine.items.map((item: any) =>
-      item.id === itemId ? { ...item, ...updates } : item
+      item.id === itemId ? { ...item, ...updates } : item,
     );
 
     // Convert completedAt to Timestamp if it exists
@@ -1116,7 +1271,7 @@ export async function updateRoutineItem(
 
     // Clean each item to remove any undefined fields inside the items array
     const cleanedItems = finalUpdatedItems.map((item: any) =>
-      removeUndefinedFields(item)
+      removeUndefinedFields(item),
     );
 
     const updateData: any = removeUndefinedFields({
@@ -1157,7 +1312,7 @@ export async function updateRoutineItem(
         const scheduledCount = countScheduledDaysBetween(
           lastCompDate,
           today,
-          routine.schedule || "both"
+          routine.schedule || "both",
         );
 
         if (scheduledCount === STREAK_RESET_THRESHOLD) {
@@ -1222,7 +1377,7 @@ export async function deleteRoutineItem(routineId: string, itemId: string) {
 
     const routine = routineDoc.data();
     const updatedItems = (routine.items || []).filter(
-      (item: any) => item.id !== itemId
+      (item: any) => item.id !== itemId,
     );
 
     const updateData = removeUndefinedFields({
@@ -1265,7 +1420,7 @@ export async function completeRoutine(routineId: string) {
       const scheduledCount = countScheduledDaysBetween(
         lastCompDate,
         today,
-        routine.schedule || "both"
+        routine.schedule || "both",
       );
 
       // If scheduledCount equals the configured threshold we treat this as
@@ -1290,7 +1445,7 @@ export async function completeRoutine(routineId: string) {
           ...item,
           completed: true,
           completedAt: Timestamp.fromDate(today),
-        })
+        }),
       ),
       updatedAt: Timestamp.now(),
     });
@@ -1310,18 +1465,18 @@ export async function completeRoutine(routineId: string) {
 export async function uploadTradeScreenshot(
   userId: string,
   tradeId: string,
-  imageUri: string
+  imageUri: string,
 ): Promise<string | null> {
   console.warn(
-    "uploadTradeScreenshot is deprecated. Use uploadTradeImage from supabaseImageService instead."
+    "uploadTradeScreenshot is deprecated. Use uploadTradeImage from supabaseImageService instead.",
   );
   return null;
 }
 
 export async function deleteTradeScreenshot(
-  screenshotUrl: string
+  screenshotUrl: string,
 ): Promise<void> {
   console.warn(
-    "deleteTradeScreenshot is deprecated. Use deleteTradeImage from supabaseImageService instead."
+    "deleteTradeScreenshot is deprecated. Use deleteTradeImage from supabaseImageService instead.",
   );
 }

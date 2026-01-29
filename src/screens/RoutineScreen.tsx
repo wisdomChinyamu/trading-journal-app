@@ -8,6 +8,7 @@ import {
   Alert,
   Platform,
   TextInput,
+  Modal,
 } from "react-native";
 import { useAppContext } from "../hooks/useAppContext";
 import { useTheme } from "../components/ThemeProvider";
@@ -38,6 +39,19 @@ export default function RoutineScreen() {
     "weekday" | "weekend" | "both"
   >("both");
   const [loading, setLoading] = useState(false);
+  const [editingRoutineId, setEditingRoutineId] = useState<string | null>(null);
+  const [editingRoutineName, setEditingRoutineName] = useState("");
+  const [confirmDeleteItemVisible, setConfirmDeleteItemVisible] =
+    useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+
+  // States for editing routine items
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingItemLabel, setEditingItemLabel] = useState("");
+  const [editingItemCategory, setEditingItemCategory] = useState<
+    "Critical" | "Important" | "Optional"
+  >("Optional");
+  const [showEditItemModal, setShowEditItemModal] = useState(false);
 
   // Load routines when component mounts
   useEffect(() => {
@@ -51,7 +65,7 @@ export default function RoutineScreen() {
           console.error("Error loading routines:", error);
           Alert.alert(
             "Error",
-            "Failed to load routines: " + (error as Error).message
+            "Failed to load routines: " + (error as Error).message,
           );
         } finally {
           setLoading(false);
@@ -105,7 +119,7 @@ export default function RoutineScreen() {
         const scheduledMissed = countScheduledDaysBetween(
           lastCompDate,
           today,
-          activeRoutine.schedule
+          activeRoutine.schedule,
         );
 
         // If user missed scheduled days beyond the configured threshold, reset streak
@@ -121,7 +135,7 @@ export default function RoutineScreen() {
               const routines = await getRoutines(state.user.uid);
               dispatch({ type: "SET_ROUTINES", payload: routines });
               const updatedRoutine = routines.find(
-                (r) => r.id === activeRoutine.id
+                (r) => r.id === activeRoutine.id,
               );
               if (updatedRoutine) setActiveRoutine(updatedRoutine);
             }
@@ -136,7 +150,7 @@ export default function RoutineScreen() {
       try {
         const isTodayScheduled = isScheduledDay(
           new Date(),
-          activeRoutine.schedule
+          activeRoutine.schedule,
         );
         const lastCompletedDate = activeRoutine.lastCompleted
           ? new Date(activeRoutine.lastCompleted)
@@ -169,7 +183,7 @@ export default function RoutineScreen() {
               const routines = await getRoutines(state.user.uid);
               dispatch({ type: "SET_ROUTINES", payload: routines });
               const updatedRoutine = routines.find(
-                (r) => r.id === activeRoutine.id
+                (r) => r.id === activeRoutine.id,
               );
               if (updatedRoutine) setActiveRoutine(updatedRoutine);
             }
@@ -197,7 +211,7 @@ export default function RoutineScreen() {
   // Confirm modal state for deletion
   const [confirmDeleteVisible, setConfirmDeleteVisible] = React.useState(false);
   const [routineToDelete, setRoutineToDelete] = React.useState<string | null>(
-    null
+    null,
   );
 
   const openDeleteRoutineConfirm = async (routineId?: string) => {
@@ -229,7 +243,86 @@ export default function RoutineScreen() {
       console.error("Error deleting routine:", error);
       Alert.alert(
         "Error",
-        "Failed to delete routine: " + (error as Error).message
+        "Failed to delete routine: " + (error as Error).message,
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const performDeleteItem = async () => {
+    if (!itemToDelete || !activeRoutine) return;
+    try {
+      setLoading(true);
+      await deleteRoutineItem(activeRoutine.id, itemToDelete);
+
+      // Refresh routines to get the updated routine
+      if (state.user?.uid) {
+        const routines = await getRoutines(state.user.uid);
+        dispatch({ type: "SET_ROUTINES", payload: routines });
+
+        // Update the active routine
+        const updatedRoutine = routines.find((r) => r.id === activeRoutine.id);
+        if (updatedRoutine) {
+          setActiveRoutine(updatedRoutine);
+        }
+      }
+
+      setConfirmDeleteItemVisible(false);
+      setItemToDelete(null);
+      Alert.alert("Success", "Item deleted successfully");
+    } catch (error) {
+      console.error("Error deleting item:", error);
+      Alert.alert(
+        "Error",
+        "Failed to delete item: " + (error as Error).message,
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openEditItemModal = (item: any) => {
+    setEditingItemId(item.id);
+    setEditingItemLabel(item.label);
+    setEditingItemCategory(item.category || "Optional");
+    setShowEditItemModal(true);
+  };
+
+  const performEditItem = async () => {
+    if (!editingItemId || !activeRoutine || !editingItemLabel.trim()) {
+      Alert.alert("Error", "Please enter a valid item name");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await updateRoutineItem(activeRoutine.id, editingItemId, {
+        label: editingItemLabel,
+        category: editingItemCategory,
+      });
+
+      // Refresh routines
+      if (state.user?.uid) {
+        const routines = await getRoutines(state.user.uid);
+        dispatch({ type: "SET_ROUTINES", payload: routines });
+
+        // Update active routine
+        const updatedRoutine = routines.find((r) => r.id === activeRoutine.id);
+        if (updatedRoutine) {
+          setActiveRoutine(updatedRoutine);
+        }
+      }
+
+      setShowEditItemModal(false);
+      setEditingItemId(null);
+      setEditingItemLabel("");
+      Alert.alert("Success", "Item updated successfully");
+    } catch (error) {
+      console.error("Error updating item:", error);
+      Alert.alert(
+        "Error",
+        "Failed to update item: " + (error as Error).message,
       );
     } finally {
       setLoading(false);
@@ -251,7 +344,7 @@ export default function RoutineScreen() {
       const routineId = await createRoutine(
         state.user.uid,
         newRoutineName,
-        selectedSchedule
+        selectedSchedule,
       );
 
       // Refresh routines
@@ -272,7 +365,7 @@ export default function RoutineScreen() {
       console.error("Error creating routine:", error);
       Alert.alert(
         "Error",
-        "Failed to create routine: " + (error as Error).message
+        "Failed to create routine: " + (error as Error).message,
       );
     } finally {
       setLoading(false);
@@ -337,7 +430,7 @@ export default function RoutineScreen() {
               completed: !it.completed,
               completedAt: !it.completed ? new Date() : null,
             }
-          : it
+          : it,
       );
       setActiveRoutine({ ...(activeRoutine as any), items: optimisticItems });
 
@@ -362,7 +455,7 @@ export default function RoutineScreen() {
       console.error("Error toggling routine item:", error);
       Alert.alert(
         "Error",
-        "Failed to update item: " + (error as Error).message
+        "Failed to update item: " + (error as Error).message,
       );
     } finally {
       setLoading(false);
@@ -393,7 +486,76 @@ export default function RoutineScreen() {
       console.error("Error completing routine:", error);
       Alert.alert(
         "Error",
-        "Failed to complete routine: " + (error as Error).message
+        "Failed to complete routine: " + (error as Error).message,
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateRoutineName = async () => {
+    if (!activeRoutine || !editingRoutineName.trim()) {
+      Alert.alert("Error", "Please enter a routine name");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await updateRoutine(activeRoutine.id, { name: editingRoutineName });
+
+      // Refresh routines
+      if (state.user?.uid) {
+        const routines = await getRoutines(state.user.uid);
+        dispatch({ type: "SET_ROUTINES", payload: routines });
+
+        // Update active routine
+        const updatedRoutine = routines.find((r) => r.id === activeRoutine.id);
+        if (updatedRoutine) {
+          setActiveRoutine(updatedRoutine);
+        }
+      }
+
+      setEditingRoutineId(null);
+      setEditingRoutineName("");
+      Alert.alert("Success", "Routine name updated");
+    } catch (error) {
+      console.error("Error updating routine name:", error);
+      Alert.alert(
+        "Error",
+        "Failed to update routine: " + (error as Error).message,
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteItem = async () => {
+    if (!activeRoutine || !itemToDelete) return;
+
+    try {
+      setLoading(true);
+      await deleteRoutineItem(activeRoutine.id, itemToDelete);
+
+      // Refresh routines
+      if (state.user?.uid) {
+        const routines = await getRoutines(state.user.uid);
+        dispatch({ type: "SET_ROUTINES", payload: routines });
+
+        // Update active routine
+        const updatedRoutine = routines.find((r) => r.id === activeRoutine.id);
+        if (updatedRoutine) {
+          setActiveRoutine(updatedRoutine);
+        }
+      }
+
+      setConfirmDeleteItemVisible(false);
+      setItemToDelete(null);
+      Alert.alert("Success", "Item deleted");
+    } catch (error) {
+      console.error("Error deleting item:", error);
+      Alert.alert(
+        "Error",
+        "Failed to delete item: " + (error as Error).message,
       );
     } finally {
       setLoading(false);
@@ -648,27 +810,86 @@ export default function RoutineScreen() {
             style={[styles.routineContent, { backgroundColor: colors.card }]}
           >
             <View style={styles.routineHeader}>
-              <View>
-                <Text style={[styles.routineName, { color: colors.text }]}>
-                  {activeRoutine.name}
-                </Text>
-                <Text
-                  style={[styles.routineSchedule, { color: colors.subtext }]}
-                >
-                  {activeRoutine.schedule === "both"
-                    ? "Every day"
-                    : activeRoutine.schedule === "weekday"
-                    ? "Weekdays only"
-                    : "Weekends only"}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => openDeleteRoutineConfirm(activeRoutine.id)}
-                disabled={loading}
-              >
-                <Text style={styles.deleteButtonText}>🗑️</Text>
-              </TouchableOpacity>
+              {editingRoutineId === activeRoutine.id ? (
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <TextInput
+                    style={[
+                      styles.routineNameInput,
+                      { color: colors.text, borderColor: colors.highlight },
+                    ]}
+                    value={editingRoutineName}
+                    onChangeText={setEditingRoutineName}
+                    placeholder="Routine name"
+                    placeholderTextColor={colors.subtext}
+                  />
+                  <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                    <TouchableOpacity
+                      style={[
+                        styles.smallButton,
+                        { backgroundColor: colors.highlight, flex: 1 },
+                      ]}
+                      onPress={handleUpdateRoutineName}
+                      disabled={loading}
+                    >
+                      <Text style={styles.smallButtonText}>Save</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.smallButton,
+                        { backgroundColor: colors.surface, flex: 1 },
+                      ]}
+                      onPress={() => {
+                        setEditingRoutineId(null);
+                        setEditingRoutineName("");
+                      }}
+                      disabled={loading}
+                    >
+                      <Text
+                        style={[styles.smallButtonText, { color: colors.text }]}
+                      >
+                        Cancel
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.routineName, { color: colors.text }]}>
+                      {activeRoutine.name}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.routineSchedule,
+                        { color: colors.subtext },
+                      ]}
+                    >
+                      {activeRoutine.schedule === "both"
+                        ? "Every day"
+                        : activeRoutine.schedule === "weekday"
+                          ? "Weekdays only"
+                          : "Weekends only"}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={() => {
+                      setEditingRoutineId(activeRoutine.id);
+                      setEditingRoutineName(activeRoutine.name);
+                    }}
+                    disabled={loading}
+                  >
+                    <Text style={styles.editButtonText}>✏️</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => openDeleteRoutineConfirm(activeRoutine.id)}
+                    disabled={loading}
+                  >
+                    <Text style={styles.deleteButtonText}>🗑️</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
             {/* Progress Bar */}
@@ -730,58 +951,90 @@ export default function RoutineScreen() {
                 </View>
               ) : (
                 activeRoutine.items.map((item) => (
-                  <TouchableOpacity
+                  <View
                     key={item.id}
-                    style={[
-                      styles.item,
-                      item.completed && styles.completedItem,
-                      { backgroundColor: colors.surface },
-                    ]}
-                    onPress={() => handleToggleItem(item.id)}
-                    disabled={loading}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      backgroundColor: colors.surface,
+                      borderRadius: 8,
+                      marginBottom: 8,
+                      overflow: "hidden",
+                    }}
                   >
-                    <View
+                    <TouchableOpacity
                       style={[
-                        styles.checkbox,
-                        item.completed && styles.checked,
-                        {
-                          borderColor: item.completed
-                            ? colors.highlight
-                            : colors.neutral,
-                        },
+                        styles.item,
+                        item.completed && styles.completedItem,
+                        { flex: 1 },
                       ]}
+                      onPress={() => handleToggleItem(item.id)}
+                      disabled={loading}
                     >
-                      {item.completed && (
-                        <Text style={styles.checkmark}>✓</Text>
-                      )}
-                    </View>
-                    <View style={styles.itemContent}>
-                      <Text
+                      <View
                         style={[
-                          styles.itemText,
-                          item.completed && styles.completedItemText,
+                          styles.checkbox,
+                          item.completed && styles.checked,
                           {
-                            color: item.completed
+                            borderColor: item.completed
                               ? colors.highlight
-                              : colors.text,
+                              : colors.neutral,
                           },
                         ]}
                       >
-                        {item.label}
-                      </Text>
-                      {item.completed && item.completedAt && (
+                        {item.completed && (
+                          <Text style={styles.checkmark}>✓</Text>
+                        )}
+                      </View>
+                      <View style={styles.itemContent}>
                         <Text
                           style={[
-                            styles.completedAt,
-                            { color: colors.subtext },
+                            styles.itemText,
+                            item.completed && styles.completedItemText,
+                            {
+                              color: item.completed
+                                ? colors.highlight
+                                : colors.text,
+                            },
                           ]}
                         >
-                          Completed{" "}
-                          {new Date(item.completedAt).toLocaleDateString()}
+                          {item.label}
                         </Text>
-                      )}
+                        {item.completed && item.completedAt && (
+                          <Text
+                            style={[
+                              styles.completedAt,
+                              { color: colors.subtext },
+                            ]}
+                          >
+                            Completed{" "}
+                            {new Date(item.completedAt).toLocaleDateString()}
+                          </Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                    <View
+                      style={{ flexDirection: "row", alignItems: "center" }}
+                    >
+                      <TouchableOpacity
+                        onPress={() => openEditItemModal(item)}
+                        disabled={loading}
+                        style={{ padding: 12 }}
+                      >
+                        <Text style={{ fontSize: 16 }}>✏️</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setItemToDelete(item.id);
+                          setConfirmDeleteItemVisible(true);
+                        }}
+                        disabled={loading}
+                        style={{ padding: 12 }}
+                      >
+                        <Text style={{ fontSize: 16 }}>🗑️</Text>
+                      </TouchableOpacity>
                     </View>
-                  </TouchableOpacity>
+                  </View>
                 ))
               )}
             </View>
@@ -824,6 +1077,121 @@ export default function RoutineScreen() {
             setRoutineToDelete(null);
           }}
         />
+
+        <ConfirmModal
+          visible={confirmDeleteItemVisible}
+          title="Delete Item"
+          message="Are you sure you want to delete this item? This action cannot be undone."
+          confirmText="Delete"
+          cancelText="Cancel"
+          onConfirm={performDeleteItem}
+          onCancel={() => {
+            setConfirmDeleteItemVisible(false);
+            setItemToDelete(null);
+          }}
+        />
+
+        {/* Edit Item Modal */}
+        {showEditItemModal && (
+          <View>
+            <Modal
+              visible={showEditItemModal}
+              transparent={true}
+              animationType="slide"
+              onRequestClose={() => setShowEditItemModal(false)}
+            >
+              <View style={{ flex: 1, justifyContent: "center", padding: 16 }}>
+                <View
+                  style={{
+                    backgroundColor: colors.card,
+                    padding: 16,
+                    borderRadius: 12,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontWeight: "700",
+                      fontSize: 16,
+                      marginBottom: 8,
+                      color: colors.text,
+                    }}
+                  >
+                    Edit Item
+                  </Text>
+                  <TextInput
+                    value={editingItemLabel}
+                    onChangeText={setEditingItemLabel}
+                    placeholder="Item label"
+                    placeholderTextColor={colors.subtext}
+                    style={{
+                      backgroundColor: colors.surface,
+                      padding: 12,
+                      borderRadius: 8,
+                      color: colors.text,
+                    }}
+                  />
+                  <View style={{ flexDirection: "row", marginTop: 12, gap: 8 }}>
+                    {(["Critical", "Important", "Optional"] as const).map(
+                      (c) => (
+                        <TouchableOpacity
+                          key={c}
+                          onPress={() => setEditingItemCategory(c as any)}
+                          style={{
+                            padding: 8,
+                            backgroundColor:
+                              editingItemCategory === c
+                                ? colors.highlight
+                                : colors.surface,
+                            borderRadius: 8,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color:
+                                editingItemCategory === c
+                                  ? colors.text
+                                  : colors.subtext,
+                            }}
+                          >
+                            {c}
+                          </Text>
+                        </TouchableOpacity>
+                      ),
+                    )}
+                  </View>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      marginTop: 12,
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <TouchableOpacity
+                      onPress={() => setShowEditItemModal(false)}
+                      style={{
+                        padding: 12,
+                        backgroundColor: colors.surface,
+                        borderRadius: 8,
+                      }}
+                    >
+                      <Text style={{ color: colors.text }}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={performEditItem}
+                      style={{
+                        padding: 12,
+                        backgroundColor: colors.highlight,
+                        borderRadius: 8,
+                      }}
+                    >
+                      <Text style={{ color: colors.text }}>Save</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
+          </View>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -1017,6 +1385,29 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
     marginBottom: 16,
+  },
+  routineNameInput: {
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+  },
+  smallButton: {
+    padding: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  smallButtonText: {
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  editButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  editButtonText: {
+    fontSize: 18,
   },
   routineName: {
     fontSize: 20,

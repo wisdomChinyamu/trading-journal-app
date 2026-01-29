@@ -1,6 +1,6 @@
-import { supabase } from '../config/supabase';
+import { supabase } from "../config/supabase";
 
-const BUCKET_NAME = 'trade-images';
+const BUCKET_NAME = "trade-images";
 
 /**
  * Upload an image file to Supabase storage
@@ -10,23 +10,28 @@ const BUCKET_NAME = 'trade-images';
  */
 export async function uploadTradeImage(
   tradeId: string,
-  file: File
+  file: File,
 ): Promise<string | null> {
   try {
     // Check if Supabase is configured
-    if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
-      console.warn('Supabase not configured. Image upload skipped.');
+    if (
+      !(process.env as any).EXPO_PUBLIC_SUPABASE_URL ||
+      !(process.env as any).EXPO_PUBLIC_SUPABASE_ANON_KEY
+    ) {
+      console.warn("Supabase not configured. Image upload skipped.");
       return null;
     }
 
     // Check if the supabase client is properly initialized
     if (!supabase || !supabase.storage) {
-      console.warn('Supabase client not properly initialized. Image upload skipped.');
+      console.warn(
+        "Supabase client not properly initialized. Image upload skipped.",
+      );
       return null;
     }
 
     if (!file) {
-      throw new Error('No file provided');
+      throw new Error("No file provided");
     }
 
     // Create a unique filename: tradeId/timestamp_originalname
@@ -37,12 +42,12 @@ export async function uploadTradeImage(
     const { data, error } = await supabase.storage
       .from(BUCKET_NAME)
       .upload(fileName, file, {
-        cacheControl: '3600',
+        cacheControl: "3600",
         upsert: false,
       });
 
     if (error) {
-      console.error('Error uploading image:', error);
+      console.error("Error uploading image:", error);
       throw error;
     }
 
@@ -53,7 +58,7 @@ export async function uploadTradeImage(
 
     return publicUrlData.publicUrl;
   } catch (error) {
-    console.error('Failed to upload trade image:', error);
+    console.error("Failed to upload trade image:", error);
     return null;
   }
 }
@@ -66,36 +71,40 @@ export async function uploadTradeImage(
 export async function deleteTradeImage(imageUrl: string): Promise<boolean> {
   try {
     // Check if Supabase is configured
-    if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
-      console.warn('Supabase not configured. Image deletion skipped.');
+    if (
+      !(process.env as any).EXPO_PUBLIC_SUPABASE_URL ||
+      !(process.env as any).EXPO_PUBLIC_SUPABASE_ANON_KEY
+    ) {
+      console.warn("Supabase not configured. Image deletion skipped.");
       return false;
     }
 
     // Check if the supabase client is properly initialized
     if (!supabase || !supabase.storage) {
-      console.warn('Supabase client not properly initialized. Image deletion skipped.');
+      console.warn(
+        "Supabase client not properly initialized. Image deletion skipped.",
+      );
       return false;
     }
 
     // Extract the file path from the URL if it's a full URL
     let filePath = imageUrl;
-    if (imageUrl.includes('/storage/v1/object/public/')) {
-      filePath = imageUrl.split('/storage/v1/object/public/trade-images/')[1];
+    if (imageUrl.includes("/storage/v1/object/public/")) {
+      filePath = imageUrl.split("/storage/v1/object/public/trade-images/")[1];
     }
 
-    const { error } = await supabase
-      .storage
+    const { error } = await supabase.storage
       .from(BUCKET_NAME)
       .remove([filePath]);
 
     if (error) {
-      console.error('Error deleting image:', error);
+      console.error("Error deleting image:", error);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error('Failed to delete trade image:', error);
+    console.error("Failed to delete trade image:", error);
     return false;
   }
 }
@@ -108,36 +117,42 @@ export async function deleteTradeImage(imageUrl: string): Promise<boolean> {
 export async function getTradeImages(tradeId: string): Promise<string[]> {
   try {
     // Check if Supabase is configured
-    if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
-      console.warn('Supabase not configured. Getting images skipped.');
+    if (
+      !(process.env as any).EXPO_PUBLIC_SUPABASE_URL ||
+      !(process.env as any).EXPO_PUBLIC_SUPABASE_ANON_KEY
+    ) {
+      console.warn("Supabase not configured. Getting images skipped.");
       return [];
     }
 
     // Check if the supabase client is properly initialized
     if (!supabase || !supabase.storage) {
-      console.warn('Supabase client not properly initialized. Getting images skipped.');
+      console.warn(
+        "Supabase client not properly initialized. Getting images skipped.",
+      );
       return [];
     }
 
-    const { data, error } = await supabase
-      .storage
+    const { data, error } = await supabase.storage
       .from(BUCKET_NAME)
       .list(tradeId);
 
     if (error) {
-      console.error('Error listing images:', error);
+      console.error("Error listing images:", error);
       return [];
     }
 
     // Map to public URLs
     return data.map((file) => {
-      const { data: { publicUrl } } = supabase.storage
+      const {
+        data: { publicUrl },
+      } = supabase.storage
         .from(BUCKET_NAME)
         .getPublicUrl(`${tradeId}/${file.name}`);
       return publicUrl;
     });
   } catch (error) {
-    console.error('Failed to get trade images:', error);
+    console.error("Failed to get trade images:", error);
     return [];
   }
 }
@@ -152,18 +167,23 @@ export async function getTradeImages(tradeId: string): Promise<string[]> {
 export async function updateTradeImage(
   oldImageUrl: string,
   tradeId: string,
-  file: File
+  file: File,
 ): Promise<string | null> {
   try {
     // Check if Supabase is configured
-    if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
-      console.warn('Supabase not configured. Image update skipped.');
+    if (
+      !(process.env as any).EXPO_PUBLIC_SUPABASE_URL ||
+      !(process.env as any).EXPO_PUBLIC_SUPABASE_ANON_KEY
+    ) {
+      console.warn("Supabase not configured. Image update skipped.");
       return null;
     }
 
     // Check if the supabase client is properly initialized
     if (!supabase || !supabase.storage) {
-      console.warn('Supabase client not properly initialized. Image update skipped.');
+      console.warn(
+        "Supabase client not properly initialized. Image update skipped.",
+      );
       return null;
     }
 
@@ -173,7 +193,7 @@ export async function updateTradeImage(
     // Then upload the new image
     return await uploadTradeImage(tradeId, file);
   } catch (error) {
-    console.error('Failed to update trade image:', error);
+    console.error("Failed to update trade image:", error);
     return null;
   }
 }

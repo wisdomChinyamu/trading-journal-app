@@ -7,9 +7,14 @@ import {
   TextInput,
   Modal,
   ScrollView,
+  Platform,
 } from "react-native";
 import { TradingAccount } from "../types";
-import { getAccountTransactions } from "../services/firebaseService";
+import {
+  getAccountTransactions,
+  deleteAccountTransaction,
+} from "../services/firebaseService";
+import ConfirmModal from "./ConfirmModal";
 
 interface AccountDetailsPanelProps {
   account: TradingAccount;
@@ -19,7 +24,8 @@ interface AccountDetailsPanelProps {
     accountId: string,
     newBalance: number,
     type: "deposit" | "withdrawal",
-    amount: number
+    amount: number,
+    transactionTime?: Date | string,
   ) => Promise<void> | void;
 }
 
@@ -34,7 +40,16 @@ export default function AccountDetailsPanel({
     "deposit" | "withdrawal"
   >("deposit");
   const [amount, setAmount] = useState("");
+  const [transactionDate, setTransactionDate] = useState<Date>(new Date());
+  const [transactionTimeText, setTransactionTimeText] = useState<string>(
+    new Date().toISOString().slice(11, 16),
+  );
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [deleteTransactionVisible, setDeleteTransactionVisible] =
+    useState(false);
+  const [transactionToDelete, setTransactionToDelete] = useState<string | null>(
+    null,
+  );
 
   const balanceChange = account.currentBalance - account.startingBalance;
   const balanceChangePercentage = (
@@ -52,11 +67,37 @@ export default function AccountDetailsPanel({
       setAmount("");
       return;
     }
-
     const newBalance =
       transactionType === "deposit"
         ? Number(account.currentBalance || 0) + parsed
         : Number(account.currentBalance || 0) - parsed;
+
+    // Build transaction timestamp from selected date + time string (HH:MM)
+    let txnTime: Date | undefined = undefined;
+    try {
+      const td = transactionDate ? new Date(transactionDate) : new Date();
+      const timeRegex = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+      if (transactionTimeText && timeRegex.test(transactionTimeText)) {
+        const [hh, mm] = transactionTimeText
+          .split(":")
+          .map((s) => parseInt(s, 10));
+        if (!isNaN(hh) && !isNaN(mm)) {
+          td.setHours(hh, mm, 0, 0);
+          txnTime = td;
+        }
+      } else {
+        // If user didn't provide valid time, default to start of day time
+        td.setHours(0, 0, 0, 0);
+        txnTime = td;
+      }
+    } catch (e) {
+      txnTime = new Date(); // Default to current moment
+    }
+
+    // Ensure txnTime is never undefined (should default to now)
+    if (!txnTime) {
+      txnTime = new Date();
+    }
 
     if (onTransaction) {
       try {
@@ -65,7 +106,8 @@ export default function AccountDetailsPanel({
           account.id,
           newBalance,
           transactionType,
-          parsed
+          parsed,
+          txnTime,
         );
         Promise.resolve(maybePromise).then(() => fetchTransactions());
       } catch (err) {
@@ -90,15 +132,29 @@ export default function AccountDetailsPanel({
           typeof it.createdAt.toDate === "function"
             ? it.createdAt.toDate()
             : it?.createdAt instanceof Date
-            ? it.createdAt
-            : new Date(it?.createdAt || Date.now()),
+              ? it.createdAt
+              : new Date(it?.createdAt || Date.now()),
+      }));
+      // Normalize transactionTime as well (use it for display/calculation if available, fallback to createdAt)
+      const withTransactionTime = normalized.map((it: any) => ({
+        ...it,
+        transactionTime:
+          it?.transactionTime &&
+          typeof it.transactionTime === "object" &&
+          typeof it.transactionTime.toDate === "function"
+            ? it.transactionTime.toDate()
+            : it?.transactionTime instanceof Date
+              ? it.transactionTime
+              : it?.transactionTime
+                ? new Date(it.transactionTime)
+                : it.createdAt,
       }));
       console.debug(
         "fetched transactions for account",
         account.id,
-        normalized.length
+        withTransactionTime.length,
       );
-      setTransactions(normalized);
+      setTransactions(withTransactionTime);
     } catch (err) {
       console.error("Failed to load transactions", err);
     }
@@ -213,6 +269,8 @@ export default function AccountDetailsPanel({
             style={[styles.actionButton, styles.depositButton]}
             onPress={() => {
               setTransactionType("deposit");
+              setTransactionDate(new Date());
+              setTransactionTimeText(new Date().toISOString().slice(11, 16));
               setShowTransactionModal(true);
             }}
           >
@@ -223,6 +281,8 @@ export default function AccountDetailsPanel({
             style={[styles.actionButton, styles.withdrawButton]}
             onPress={() => {
               setTransactionType("withdrawal");
+              setTransactionDate(new Date());
+              setTransactionTimeText(new Date().toISOString().slice(11, 16));
               setShowTransactionModal(true);
             }}
           >
@@ -293,15 +353,17 @@ export default function AccountDetailsPanel({
                     borderRadius: 8,
                   }}
                 >
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={{ color: "#fff", fontWeight: "700" }}>
                       {t.type === "deposit" ? "Deposit" : "Withdrawal"}
                     </Text>
                     <Text style={{ color: "#888", fontSize: 12 }}>
-                      {new Date(t.createdAt).toLocaleString()}
+                      {new Date(
+                        t.transactionTime || t.createdAt,
+                      ).toLocaleString()}
                     </Text>
                   </View>
-                  <View style={{ alignItems: "flex-end" }}>
+                  <View style={{ alignItems: "flex-end", marginRight: 8 }}>
                     <Text
                       style={{
                         color: t.type === "deposit" ? "#4caf50" : "#f44336",
@@ -314,6 +376,15 @@ export default function AccountDetailsPanel({
                       Balance: ${Number(t.balanceAfter).toLocaleString()}
                     </Text>
                   </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setTransactionToDelete(t.id);
+                      setDeleteTransactionVisible(true);
+                    }}
+                    style={{ padding: 4 }}
+                  >
+                    <Text style={{ fontSize: 16 }}>🗑️</Text>
+                  </TouchableOpacity>
                 </View>
               ))}
             </View>
@@ -325,6 +396,31 @@ export default function AccountDetailsPanel({
           )}
         </View>
       </View>
+
+      {/* Delete Transaction Confirmation Modal */}
+      <ConfirmModal
+        visible={deleteTransactionVisible}
+        title="Delete Transaction"
+        message="Are you sure you want to delete this transaction? This will revert the balance change."
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={async () => {
+          if (transactionToDelete) {
+            try {
+              await deleteAccountTransaction(transactionToDelete);
+              setDeleteTransactionVisible(false);
+              setTransactionToDelete(null);
+              await fetchTransactions();
+            } catch (err) {
+              console.error("Error deleting transaction", err);
+            }
+          }
+        }}
+        onCancel={() => {
+          setDeleteTransactionVisible(false);
+          setTransactionToDelete(null);
+        }}
+      />
 
       {/* Transaction Modal */}
       <Modal
@@ -357,6 +453,57 @@ export default function AccountDetailsPanel({
                   value={amount}
                   onChangeText={setAmount}
                   keyboardType="decimal-pad"
+                />
+              </View>
+
+              <View style={{ marginTop: 8 }}>
+                <Text style={styles.inputLabel}>Transaction Date</Text>
+                {Platform.OS === "web" ? (
+                  <input
+                    type="date"
+                    value={
+                      transactionDate && !isNaN(transactionDate.getTime())
+                        ? transactionDate.toISOString().slice(0, 10)
+                        : ""
+                    }
+                    onChange={(e: any) => {
+                      const v = e?.target?.value;
+                      if (!v) return;
+                      const d = new Date(v);
+                      if (!isNaN(d.getTime())) setTransactionDate(d);
+                    }}
+                    style={{
+                      padding: 8,
+                      borderRadius: 8,
+                      backgroundColor: "#0d0d0d",
+                      color: "#fff",
+                      border: "1px solid rgba(0,212,212,0.08)",
+                      width: "100%",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                ) : (
+                  <TextInput
+                    style={styles.priceInput}
+                    value={
+                      transactionDate && !isNaN(transactionDate.getTime())
+                        ? transactionDate.toISOString().slice(0, 10)
+                        : ""
+                    }
+                    onChangeText={(t) => {
+                      const d = new Date(t);
+                      if (!isNaN(d.getTime())) setTransactionDate(d);
+                    }}
+                  />
+                )}
+
+                <View style={{ marginTop: 12 }} />
+                <Text style={styles.inputLabel}>Transaction Time (HH:MM)</Text>
+                <TextInput
+                  style={styles.priceInput}
+                  value={transactionTimeText}
+                  onChangeText={setTransactionTimeText}
+                  placeholder="14:30"
                 />
               </View>
 
@@ -394,6 +541,31 @@ export default function AccountDetailsPanel({
           </View>
         </View>
       </Modal>
+
+      {/* Delete Transaction Confirmation Modal */}
+      <ConfirmModal
+        visible={deleteTransactionVisible}
+        title="Delete Transaction"
+        message="Are you sure you want to delete this transaction? This will revert the balance change."
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={async () => {
+          if (transactionToDelete) {
+            try {
+              await deleteAccountTransaction(transactionToDelete);
+              setDeleteTransactionVisible(false);
+              setTransactionToDelete(null);
+              await fetchTransactions();
+            } catch (err) {
+              console.error("Error deleting transaction", err);
+            }
+          }
+        }}
+        onCancel={() => {
+          setDeleteTransactionVisible(false);
+          setTransactionToDelete(null);
+        }}
+      />
     </>
   );
 }
@@ -664,6 +836,16 @@ const styles = StyleSheet.create({
     color: "#00d4d4",
     fontSize: 13,
     fontWeight: "700",
+  },
+  priceInputWrapper: {
+    gap: 8,
+  },
+  priceInput: {
+    flex: 1,
+    color: "#f5f5f5",
+    paddingVertical: 14,
+    fontSize: 16,
+    fontWeight: "600",
   },
   modalActions: {
     gap: 10,

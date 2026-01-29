@@ -74,7 +74,7 @@ export default function AddTradeScreen({
   const { state, dispatch } = useAppContext();
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(
-    null
+    null,
   );
   const [checklistItems, setChecklistItems] = useState<any[]>([]);
 
@@ -119,7 +119,7 @@ export default function AddTradeScreen({
   const [confluenceScore, setConfluenceScore] = useState<number | null>(null);
   const [riskAmount, setRiskAmount] = useState(""); // Add riskAmount state variable
   const [riskInputMode, setRiskInputMode] = useState<"percentage" | "amount">(
-    "percentage"
+    "percentage",
   );
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [accountModalVisible, setAccountModalVisible] = useState(false);
@@ -130,7 +130,7 @@ export default function AddTradeScreen({
     useState<boolean>(false);
   const [tradeDate, setTradeDate] = useState<Date>(new Date());
   const [tradeTimeText, setTradeTimeText] = useState<string>(
-    new Date().toISOString().slice(11, 16)
+    new Date().toISOString().slice(11, 16),
   );
   const [dateInputSupported, setDateInputSupported] = useState(true);
   const [selectedYear, setSelectedYear] = useState<string>("");
@@ -185,19 +185,18 @@ export default function AddTradeScreen({
   };
   // Responsive / layout
   const [screenWidth, setScreenWidth] = useState<number>(
-    Dimensions.get("window").width
+    Dimensions.get("window").width,
   );
   const [isSmallScreen, setIsSmallScreen] = useState<boolean>(
-    screenWidth < 380
+    screenWidth < 380,
   );
   const [isMediumScreen, setIsMediumScreen] = useState<boolean>(
-    screenWidth >= 380 && screenWidth < 640
+    screenWidth >= 380 && screenWidth < 640,
   );
 
   // Collapsible optional sections
-  const [showRiskDetails, setShowRiskDetails] = useState<boolean>(
-    !isSmallScreen
-  );
+  const [showRiskDetails, setShowRiskDetails] =
+    useState<boolean>(!isSmallScreen);
   const [showTradeContextDetails, setShowTradeContextDetails] =
     useState<boolean>(!isSmallScreen);
   const thumbnailSize = isSmallScreen ? 72 : isMediumScreen ? 88 : 100;
@@ -222,10 +221,10 @@ export default function AddTradeScreen({
   const webToday = typeof window !== "undefined" ? new Date() : new Date();
   const webCurrentYear = webToday.getFullYear();
   const years = Array.from({ length: webCurrentYear - 1900 + 1 }, (_, i) =>
-    (1900 + i).toString()
+    (1900 + i).toString(),
   );
   const months = Array.from({ length: 12 }, (_, i) =>
-    (i + 1).toString().padStart(2, "0")
+    (i + 1).toString().padStart(2, "0"),
   );
   const daysInMonth = (y: number, m: number) => new Date(y, m, 0).getDate();
   const days = (() => {
@@ -233,7 +232,7 @@ export default function AddTradeScreen({
     const m = selectedMonth ? parseInt(selectedMonth, 10) : 1;
     const max = daysInMonth(y, m);
     return Array.from({ length: max }, (_, i) =>
-      (i + 1).toString().padStart(2, "0")
+      (i + 1).toString().padStart(2, "0"),
     );
   })();
 
@@ -241,7 +240,7 @@ export default function AddTradeScreen({
   useEffect(() => {
     if (selectedYear && selectedMonth && selectedDay) {
       const parsed = new Date(
-        `${selectedYear}-${selectedMonth}-${selectedDay}`
+        `${selectedYear}-${selectedMonth}-${selectedDay}`,
       );
       if (!isNaN(parsed.getTime())) setTradeDate(parsed);
     }
@@ -274,7 +273,7 @@ export default function AddTradeScreen({
         Number(stopLoss),
         Number(takeProfit),
         direction,
-        actualExit ? Number(actualExit) : undefined
+        actualExit ? Number(actualExit) : undefined,
       );
       setRR(parseFloat(Number(effective || 0).toFixed(2)));
     } else {
@@ -312,7 +311,7 @@ export default function AddTradeScreen({
 
     const subscription: any = Dimensions.addEventListener(
       "change",
-      onChange as any
+      onChange as any,
     );
     return () => {
       try {
@@ -350,7 +349,7 @@ export default function AddTradeScreen({
         "AddTradeScreen modal flags -> accountModalVisible:",
         accountModalVisible,
         "showConfirmation:",
-        showConfirmation
+        showConfirmation,
       );
     } catch (e) {
       // ignore
@@ -366,14 +365,14 @@ export default function AddTradeScreen({
         setDirection(editingTrade.direction || "Buy");
         setSession(editingTrade.session || "London");
         setEntryPrice(
-          editingTrade.entryPrice ? String(editingTrade.entryPrice) : ""
+          editingTrade.entryPrice ? String(editingTrade.entryPrice) : "",
         );
         setStopLoss(editingTrade.stopLoss ? String(editingTrade.stopLoss) : "");
         setTakeProfit(
-          editingTrade.takeProfit ? String(editingTrade.takeProfit) : ""
+          editingTrade.takeProfit ? String(editingTrade.takeProfit) : "",
         );
         setActualExit(
-          editingTrade.actualExit ? String(editingTrade.actualExit) : ""
+          editingTrade.actualExit ? String(editingTrade.actualExit) : "",
         );
         setResult(editingTrade.result || "");
         setSetupType(editingTrade.setupType || "");
@@ -385,10 +384,10 @@ export default function AddTradeScreen({
         setSelectedAccountId(
           editingTrade.accountId ||
             (state.accounts && state.accounts[0]?.id) ||
-            ""
+            "",
         );
         setRiskAmount(
-          editingTrade.riskAmount ? String(editingTrade.riskAmount) : ""
+          editingTrade.riskAmount ? String(editingTrade.riskAmount) : "",
         );
         // Derive and populate riskPercentage when editing an existing trade
         try {
@@ -435,7 +434,7 @@ export default function AddTradeScreen({
         state.accounts[0];
       if (acc)
         setAccountBalance(
-          Number(acc.currentBalance || acc.startingBalance || 0)
+          Number(acc.currentBalance || acc.startingBalance || 0),
         );
     }
   }, [state.accounts, selectedAccountId]);
@@ -595,13 +594,17 @@ export default function AddTradeScreen({
     if (direction === "Buy") {
       if (!(sl < e && e < tp)) {
         console.warn("Directional validation failed for Buy", { e, sl, tp });
-        showValidation("For a Buy trade ensure Stop Loss < Entry < Take Profit.");
+        showValidation(
+          "For a Buy trade ensure Stop Loss < Entry < Take Profit.",
+        );
         return;
       }
     } else {
       if (!(tp < e && e < sl)) {
         console.warn("Directional validation failed for Sell", { e, sl, tp });
-        showValidation("For a Sell trade ensure Take Profit < Entry < Stop Loss.");
+        showValidation(
+          "For a Sell trade ensure Take Profit < Entry < Stop Loss.",
+        );
         return;
       }
     }
@@ -611,7 +614,11 @@ export default function AddTradeScreen({
       Number(stopLoss) <= 0 ||
       Number(takeProfit) <= 0
     ) {
-      console.warn("Price positive validation failed", { entryPrice, stopLoss, takeProfit });
+      console.warn("Price positive validation failed", {
+        entryPrice,
+        stopLoss,
+        takeProfit,
+      });
       showValidation("Prices must be greater than 0");
       return;
     }
@@ -634,7 +641,9 @@ export default function AddTradeScreen({
     if (tradeTimeText && tradeTimeText.length > 0) {
       const timeRegex = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
       if (!timeRegex.test(tradeTimeText)) {
-        showValidation("Please enter time in 24-hour format HH:MM (e.g. 14:30).");
+        showValidation(
+          "Please enter time in 24-hour format HH:MM (e.g. 14:30).",
+        );
         return;
       }
     }
@@ -654,33 +663,33 @@ export default function AddTradeScreen({
       Number(stopLoss),
       Number(takeProfit),
       direction,
-      actualExit ? Number(actualExit) : undefined
+      actualExit ? Number(actualExit) : undefined,
     );
 
     try {
       const previewTrade: any = {
-      pair: pair as any,
-      direction,
-      session,
-      accountId: selectedAccountId || undefined,
-      entryPrice: Number(entryPrice),
-      stopLoss: Number(stopLoss),
-      takeProfit: Number(takeProfit),
-      actualExit: actualExit ? Number(actualExit) : undefined,
-      result: (result as any) || undefined,
-      riskToReward: parseFloat(Number(effectiveRR || rr || 0).toFixed(2)),
-      confluenceScore: confluenceScore || 0,
-      grade: confluenceScore ? assignGrade(confluenceScore) : "D",
-      strategyId: selectedStrategyId || undefined,
-      setupType,
-      emotionalRating: Number(emotion),
-      ruleDeviation,
-      screenshots: screenshots,
-      notes,
-      checklist: selectedChecklist,
-      riskAmount: riskAmount ? Number(riskAmount) : undefined,
-      marketCondition: marketCondition || undefined,
-      tradeTime: tradeTimestamp,
+        pair: pair as any,
+        direction,
+        session,
+        accountId: selectedAccountId || undefined,
+        entryPrice: Number(entryPrice),
+        stopLoss: Number(stopLoss),
+        takeProfit: Number(takeProfit),
+        actualExit: actualExit ? Number(actualExit) : undefined,
+        result: (result as any) || undefined,
+        riskToReward: parseFloat(Number(effectiveRR || rr || 0).toFixed(2)),
+        confluenceScore: confluenceScore || 0,
+        grade: confluenceScore ? assignGrade(confluenceScore) : "D",
+        strategyId: selectedStrategyId || undefined,
+        setupType,
+        emotionalRating: Number(emotion),
+        ruleDeviation,
+        screenshots: screenshots,
+        notes,
+        checklist: selectedChecklist,
+        riskAmount: riskAmount ? Number(riskAmount) : undefined,
+        marketCondition: marketCondition || undefined,
+        tradeTime: tradeTimestamp,
       };
 
       // Debug: log preview before showing confirmation
@@ -696,7 +705,9 @@ export default function AddTradeScreen({
       } catch (e) {}
     } catch (err) {
       console.error("Error preparing previewTrade:", err);
-      showValidation("Unexpected error preparing trade preview. Check console.");
+      showValidation(
+        "Unexpected error preparing trade preview. Check console.",
+      );
       return;
     }
   };
@@ -773,7 +784,7 @@ export default function AddTradeScreen({
         } catch (errAcc) {
           console.error(
             "Failed to update account balance after trade update",
-            errAcc
+            errAcc,
           );
         }
 
@@ -895,11 +906,10 @@ export default function AddTradeScreen({
         >
           <TouchableOpacity
             onPress={() => navigation.goBack()}
-            style={{ padding: 8 }}
+            style={styles.backButton}
           >
-            <Text style={{ color: "#00d4d4", fontWeight: "700", fontSize: 16 }}>
-              ← Back
-            </Text>
+            <Text style={styles.backButtonIcon}>←</Text>
+            <Text style={styles.backButtonText}>Back</Text>
           </TouchableOpacity>
 
           <View style={{ flex: 1, alignItems: "center" }}>
@@ -1293,7 +1303,7 @@ export default function AddTradeScreen({
         )}
       </View>
 
-      {/* Price Inputs */}
+      {/* Price Inputs + Actual Exit + Result Section (moved as per instructions) */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Price Levels</Text>
         <View style={styles.priceInputsContainer}>
@@ -1340,6 +1350,53 @@ export default function AddTradeScreen({
                 keyboardType="decimal-pad"
               />
             </View>
+          </View>
+
+          {/* Actual Exit and Result Section (placed below Take Profit) */}
+          <View style={styles.priceInputWrapper}>
+            <Text style={styles.inputLabel}>Actual Exit Price</Text>
+            <View style={styles.inputWithIcon}>
+              <Text style={styles.inputIcon}>✓</Text>
+              <TextInput
+                style={styles.priceInput}
+                placeholder="0.00000"
+                placeholderTextColor="#666"
+                value={actualExit}
+                onChangeText={setActualExit}
+                keyboardType="decimal-pad"
+              />
+            </View>
+          </View>
+
+          <View style={styles.resultGroup}>
+            {["Win", "Loss", "Break-even"].map((r) => (
+              <TouchableOpacity
+                key={r}
+                style={[
+                  styles.resultButton,
+                  result === r && styles.resultButtonActive,
+                  r === "Win" && result === r && styles.resultWin,
+                  r === "Loss" && result === r && styles.resultLoss,
+                  r === "Break-even" && result === r && styles.resultBreakeven,
+                ]}
+                onPress={() => {
+                  setResult(r as any);
+                  setIsResultAutoCalculated(false);
+                }}
+              >
+                <Text style={styles.resultIcon}>
+                  {r === "Win" ? "✓" : r === "Loss" ? "✗" : "—"}
+                </Text>
+                <Text
+                  style={[
+                    styles.resultButtonText,
+                    result === r && styles.resultButtonTextActive,
+                  ]}
+                >
+                  {r}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
       </View>
@@ -1549,159 +1606,6 @@ export default function AddTradeScreen({
         )}
       </View>
 
-      {/* Actual Exit (Optional) */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Exit Details</Text>
-          <Text style={styles.optionalBadge}>Optional</Text>
-        </View>
-
-        <View style={styles.priceInputWrapper}>
-          <Text style={styles.inputLabel}>Actual Exit Price</Text>
-          <View style={styles.inputWithIcon}>
-            <Text style={styles.inputIcon}>✓</Text>
-            <TextInput
-              style={styles.priceInput}
-              placeholder="0.00000"
-              placeholderTextColor="#666"
-              value={actualExit}
-              onChangeText={setActualExit}
-              keyboardType="decimal-pad"
-            />
-          </View>
-        </View>
-
-        <View style={styles.resultGroup}>
-          {["Win", "Loss", "Break-even"].map((r) => (
-            <TouchableOpacity
-              key={r}
-              style={[
-                styles.resultButton,
-                result === r && styles.resultButtonActive,
-                r === "Win" && result === r && styles.resultWin,
-                r === "Loss" && result === r && styles.resultLoss,
-                r === "Break-even" && result === r && styles.resultBreakeven,
-              ]}
-              onPress={() => {
-                setResult(r as any);
-                setIsResultAutoCalculated(false);
-              }}
-            >
-              <Text style={styles.resultIcon}>
-                {r === "Win" ? "✓" : r === "Loss" ? "✗" : "—"}
-              </Text>
-              <Text
-                style={[
-                  styles.resultButtonText,
-                  result === r && styles.resultButtonTextActive,
-                ]}
-              >
-                {r}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* Strategy Selection */}
-      {strategies.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Strategy Template</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.strategyGroup}>
-              {strategies.map((strategy) => (
-                <TouchableOpacity
-                  key={strategy.id}
-                  style={[
-                    styles.strategyCard,
-                    selectedStrategyId === strategy.id &&
-                      styles.strategyCardActive,
-                  ]}
-                  onPress={() => {
-                    setSelectedStrategyId(strategy.id);
-                    setSetupType(strategy.name);
-                  }}
-                >
-                  <View style={styles.strategyIcon}>
-                    <Text style={styles.strategyIconText}>📋</Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.strategyName,
-                      selectedStrategyId === strategy.id &&
-                        styles.strategyNameActive,
-                    ]}
-                  >
-                    {strategy.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Setup Checklist (moved directly under Strategy Template) */}
-      {checklistItems.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Setup Checklist
-            </Text>
-            <View style={styles.checklistCounter}>
-              <Text style={styles.checklistCounterText}>
-                {selectedChecklist.length}/{checklistItems.length}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.checklistGrid}>
-            {checklistItems.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[
-                  styles.checklistChip,
-                  selectedChecklist.includes(item.id) &&
-                    styles.checklistChipActive,
-                ]}
-                onPress={() =>
-                  setSelectedChecklist(
-                    selectedChecklist.includes(item.id)
-                      ? selectedChecklist.filter((i) => i !== item.id)
-                      : [...selectedChecklist, item.id]
-                  )
-                }
-              >
-                <View style={styles.checklistChipIcon}>
-                  <Text
-                    style={[
-                      styles.checklistChipIconText,
-                      { color: colors.text },
-                    ]}
-                  >
-                    {selectedChecklist.includes(item.id) ? "✓" : "○"}
-                  </Text>
-                </View>
-                <Text
-                  style={[
-                    styles.checklistChipText,
-                    selectedChecklist.includes(item.id) &&
-                      styles.checklistChipTextActive,
-                    {
-                      color: selectedChecklist.includes(item.id)
-                        ? colors.highlight
-                        : colors.text,
-                    },
-                  ]}
-                >
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      )}
-
       {/* Emotional State */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -1777,7 +1681,7 @@ export default function AddTradeScreen({
               }
               onUpdateLabel={(uri, label) =>
                 setScreenshots(
-                  screenshots.map((s) => (s.uri === uri ? { ...s, label } : s))
+                  screenshots.map((s) => (s.uri === uri ? { ...s, label } : s)),
                 )
               }
               maxImages={8}
@@ -1843,20 +1747,30 @@ export default function AddTradeScreen({
               <Text style={{ color: "#aaa" }}>
                 {pendingTrade.pair} • {pendingTrade.direction}
               </Text>
-              <Text style={{ color: "#f5f5f5", fontWeight: "700", marginTop: 8 }}>
+              <Text
+                style={{ color: "#f5f5f5", fontWeight: "700", marginTop: 8 }}
+              >
                 Entry: {pendingTrade.entryPrice}
               </Text>
               <Text style={{ color: "#f5f5f5", fontWeight: "700" }}>
                 SL: {pendingTrade.stopLoss} • TP: {pendingTrade.takeProfit}
               </Text>
               <Text style={{ color: "#aaa", marginTop: 8 }}>
-                R:R: {pendingTrade.riskToReward ? `1:${pendingTrade.riskToReward.toFixed ? pendingTrade.riskToReward.toFixed(2) : pendingTrade.riskToReward}` : "—"}
+                R:R:{" "}
+                {pendingTrade.riskToReward
+                  ? `1:${pendingTrade.riskToReward.toFixed ? pendingTrade.riskToReward.toFixed(2) : pendingTrade.riskToReward}`
+                  : "—"}
               </Text>
               <Text style={{ color: "#aaa" }}>
-                Confluence: {pendingTrade.confluenceScore ? `${pendingTrade.confluenceScore.toFixed ? pendingTrade.confluenceScore.toFixed(0) : pendingTrade.confluenceScore}%` : "—"}
+                Confluence:{" "}
+                {pendingTrade.confluenceScore
+                  ? `${pendingTrade.confluenceScore.toFixed ? pendingTrade.confluenceScore.toFixed(0) : pendingTrade.confluenceScore}%`
+                  : "—"}
               </Text>
               <Text style={{ color: "#aaa" }}>
-                Account: {state.accounts.find((a) => a.id === pendingTrade.accountId)?.name || "—"}
+                Account:{" "}
+                {state.accounts.find((a) => a.id === pendingTrade.accountId)
+                  ?.name || "—"}
               </Text>
               <Text style={{ color: "#aaa" }}>
                 Risk Amount: ${pendingTrade.riskAmount ?? "—"}
@@ -1865,13 +1779,37 @@ export default function AddTradeScreen({
                 Market: {pendingTrade.marketCondition || "—"}
               </Text>
 
-              <View style={{ marginTop: 12, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#222" }}>
-                <Text style={{ color: "#aaa", marginBottom: 6, fontWeight: "700" }}>Projected Impact</Text>
-                <Text style={{ color: "#aaa" }}>
-                  Win Rate: {calculateWinRate(state.trades || []).toFixed(1)}% → {pendingTrade.result ? calculateWinRate([...(state.trades || []), pendingTrade as any]).toFixed(1) : "—"}%
+              <View
+                style={{
+                  marginTop: 12,
+                  paddingTop: 8,
+                  borderTopWidth: 1,
+                  borderTopColor: "#222",
+                }}
+              >
+                <Text
+                  style={{ color: "#aaa", marginBottom: 6, fontWeight: "700" }}
+                >
+                  Projected Impact
                 </Text>
                 <Text style={{ color: "#aaa" }}>
-                  Avg R:R: {calculateAverageRR(state.trades || []).toFixed(2)} → {pendingTrade.riskToReward ? calculateAverageRR([...(state.trades || []), pendingTrade as any]).toFixed(2) : "—"}
+                  Win Rate: {calculateWinRate(state.trades || []).toFixed(1)}% →{" "}
+                  {pendingTrade.result
+                    ? calculateWinRate([
+                        ...(state.trades || []),
+                        pendingTrade as any,
+                      ]).toFixed(1)
+                    : "—"}
+                  %
+                </Text>
+                <Text style={{ color: "#aaa" }}>
+                  Avg R:R: {calculateAverageRR(state.trades || []).toFixed(2)} →{" "}
+                  {pendingTrade.riskToReward
+                    ? calculateAverageRR([
+                        ...(state.trades || []),
+                        pendingTrade as any,
+                      ]).toFixed(2)
+                    : "—"}
                 </Text>
               </View>
             </View>
@@ -1888,35 +1826,135 @@ export default function AddTradeScreen({
               padding: 16,
             }}
           >
-            <View style={{ backgroundColor: "#0d0d0d", borderRadius: 12, padding: 16 }}>
-              <Text style={{ color: "#f5f5f5", fontSize: 18, fontWeight: "800", marginBottom: 8 }}>
+            <View
+              style={{
+                backgroundColor: "#0d0d0d",
+                borderRadius: 12,
+                padding: 16,
+              }}
+            >
+              <Text
+                style={{
+                  color: "#f5f5f5",
+                  fontSize: 18,
+                  fontWeight: "800",
+                  marginBottom: 8,
+                }}
+              >
                 Confirm Trade
               </Text>
               {pendingTrade && (
                 <View>
-                  <Text style={{ color: "#aaa" }}>{pendingTrade.pair} • {pendingTrade.direction}</Text>
-                  <Text style={{ color: "#f5f5f5", fontWeight: "700", marginTop: 8 }}>Entry: {pendingTrade.entryPrice}</Text>
-                  <Text style={{ color: "#f5f5f5", fontWeight: "700" }}>SL: {pendingTrade.stopLoss} • TP: {pendingTrade.takeProfit}</Text>
-                  <Text style={{ color: "#aaa", marginTop: 8 }}>R:R: {pendingTrade.riskToReward ? `1:${pendingTrade.riskToReward.toFixed ? pendingTrade.riskToReward.toFixed(2) : pendingTrade.riskToReward}` : "—"}</Text>
-                  <Text style={{ color: "#aaa" }}>Confluence: {pendingTrade.confluenceScore ? `${pendingTrade.confluenceScore.toFixed ? pendingTrade.confluenceScore.toFixed(0) : pendingTrade.confluenceScore}%` : "—"}</Text>
-                  <Text style={{ color: "#aaa" }}>Account: {state.accounts.find((a) => a.id === pendingTrade.accountId)?.name || "—"}</Text>
-                  <Text style={{ color: "#aaa" }}>Risk Amount: ${pendingTrade.riskAmount ?? "—"}</Text>
-                  <Text style={{ color: "#aaa" }}>Market: {pendingTrade.marketCondition || "—"}</Text>
+                  <Text style={{ color: "#aaa" }}>
+                    {pendingTrade.pair} • {pendingTrade.direction}
+                  </Text>
+                  <Text
+                    style={{
+                      color: "#f5f5f5",
+                      fontWeight: "700",
+                      marginTop: 8,
+                    }}
+                  >
+                    Entry: {pendingTrade.entryPrice}
+                  </Text>
+                  <Text style={{ color: "#f5f5f5", fontWeight: "700" }}>
+                    SL: {pendingTrade.stopLoss} • TP: {pendingTrade.takeProfit}
+                  </Text>
+                  <Text style={{ color: "#aaa", marginTop: 8 }}>
+                    R:R:{" "}
+                    {pendingTrade.riskToReward
+                      ? `1:${pendingTrade.riskToReward.toFixed ? pendingTrade.riskToReward.toFixed(2) : pendingTrade.riskToReward}`
+                      : "—"}
+                  </Text>
+                  <Text style={{ color: "#aaa" }}>
+                    Confluence:{" "}
+                    {pendingTrade.confluenceScore
+                      ? `${pendingTrade.confluenceScore.toFixed ? pendingTrade.confluenceScore.toFixed(0) : pendingTrade.confluenceScore}%`
+                      : "—"}
+                  </Text>
+                  <Text style={{ color: "#aaa" }}>
+                    Account:{" "}
+                    {state.accounts.find((a) => a.id === pendingTrade.accountId)
+                      ?.name || "—"}
+                  </Text>
+                  <Text style={{ color: "#aaa" }}>
+                    Risk Amount: ${pendingTrade.riskAmount ?? "—"}
+                  </Text>
+                  <Text style={{ color: "#aaa" }}>
+                    Market: {pendingTrade.marketCondition || "—"}
+                  </Text>
 
-                  <View style={{ marginTop: 12, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#222" }}>
-                    <Text style={{ color: "#aaa", marginBottom: 6, fontWeight: "700" }}>Projected Impact</Text>
-                    <Text style={{ color: "#aaa" }}>Win Rate: {calculateWinRate(state.trades || []).toFixed(1)}% → {pendingTrade.result ? calculateWinRate([...(state.trades || []), pendingTrade as any]).toFixed(1) : "—"}%</Text>
-                    <Text style={{ color: "#aaa" }}>Avg R:R: {calculateAverageRR(state.trades || []).toFixed(2)} → {pendingTrade.riskToReward ? calculateAverageRR([...(state.trades || []), pendingTrade as any]).toFixed(2) : "—"}</Text>
+                  <View
+                    style={{
+                      marginTop: 12,
+                      paddingTop: 8,
+                      borderTopWidth: 1,
+                      borderTopColor: "#222",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: "#aaa",
+                        marginBottom: 6,
+                        fontWeight: "700",
+                      }}
+                    >
+                      Projected Impact
+                    </Text>
+                    <Text style={{ color: "#aaa" }}>
+                      Win Rate:{" "}
+                      {calculateWinRate(state.trades || []).toFixed(1)}% →{" "}
+                      {pendingTrade.result
+                        ? calculateWinRate([
+                            ...(state.trades || []),
+                            pendingTrade as any,
+                          ]).toFixed(1)
+                        : "—"}
+                      %
+                    </Text>
+                    <Text style={{ color: "#aaa" }}>
+                      Avg R:R:{" "}
+                      {calculateAverageRR(state.trades || []).toFixed(2)} →{" "}
+                      {pendingTrade.riskToReward
+                        ? calculateAverageRR([
+                            ...(state.trades || []),
+                            pendingTrade as any,
+                          ]).toFixed(2)
+                        : "—"}
+                    </Text>
                   </View>
                 </View>
               )}
 
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 16 }}>
-                <TouchableOpacity style={[styles.submitButton, { backgroundColor: "#444", flex: 1, marginRight: 8 }]} onPress={() => setShowConfirmation(false)}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  marginTop: 16,
+                }}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.submitButton,
+                    { backgroundColor: "#444", flex: 1, marginRight: 8 },
+                  ]}
+                  onPress={() => setShowConfirmation(false)}
+                >
                   <Text style={styles.submitButtonText}>Edit</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.submitButton, { backgroundColor: "#00d4d4", flex: 1 }]} onPress={() => { try { toast?.show?.("Saving trade...", "info"); } catch (e) {} confirmAndSaveTrade(); }}>
+                <TouchableOpacity
+                  style={[
+                    styles.submitButton,
+                    { backgroundColor: "#00d4d4", flex: 1 },
+                  ]}
+                  onPress={() => {
+                    try {
+                      toast?.show?.("Saving trade...", "info");
+                    } catch (e) {}
+                    confirmAndSaveTrade();
+                  }}
+                >
                   <Text style={styles.submitButtonText}>Confirm & Save</Text>
                 </TouchableOpacity>
               </View>
@@ -1940,6 +1978,32 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 16,
     marginBottom: 8,
+  },
+  backButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "#121212",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.03)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  backButtonIcon: {
+    color: "#00d4d4",
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  backButtonText: {
+    color: "#00d4d4",
+    fontSize: 16,
+    fontWeight: "700",
   },
   title: {
     color: "#f5f5f5",

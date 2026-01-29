@@ -74,8 +74,10 @@ export default function JournalScreen({ navigation }: any) {
     .sort((a, b) => {
       if (sortBy === "date") {
         // Use tradeTime (when trade was taken) instead of createdAt (when entered into database)
-        const dateA = parseDate((a as any).tradeTime ?? (a as any).createdAt) || new Date();
-        const dateB = parseDate((b as any).tradeTime ?? (b as any).createdAt) || new Date();
+        const dateA =
+          parseDate((a as any).tradeTime ?? (a as any).createdAt) || new Date();
+        const dateB =
+          parseDate((b as any).tradeTime ?? (b as any).createdAt) || new Date();
         return dateB.getTime() - dateA.getTime();
       } else if (sortBy === "grade") {
         const gradeOrder = { "A+": 5, A: 4, B: 3, C: 2, D: 1 };
@@ -88,7 +90,7 @@ export default function JournalScreen({ navigation }: any) {
   const baseForStats =
     selectedAccountId && selectedAccountId !== "all"
       ? (state.trades || []).filter(
-          (t) => String(t.accountId || "") === String(selectedAccountId)
+          (t) => String(t.accountId || "") === String(selectedAccountId),
         )
       : state.trades || [];
 
@@ -113,8 +115,8 @@ export default function JournalScreen({ navigation }: any) {
       item.result === "Win"
         ? "#4caf50"
         : item.result === "Loss"
-        ? "#f44336"
-        : "#ffa500";
+          ? "#f44336"
+          : "#ffa500";
 
     return (
       <TouchableOpacity
@@ -173,8 +175,8 @@ export default function JournalScreen({ navigation }: any) {
                       backgroundColor: item.grade.startsWith("A")
                         ? "#4caf5020"
                         : item.grade === "B"
-                        ? "#00d4d420"
-                        : "#f4433620",
+                          ? "#00d4d420"
+                          : "#f4433620",
                     },
                   ]}
                 >
@@ -185,8 +187,8 @@ export default function JournalScreen({ navigation }: any) {
                         color: item.grade.startsWith("A")
                           ? "#4caf50"
                           : item.grade === "B"
-                          ? "#00d4d4"
-                          : "#f44336",
+                            ? "#00d4d4"
+                            : "#f44336",
                       },
                     ]}
                   >
@@ -198,7 +200,7 @@ export default function JournalScreen({ navigation }: any) {
 
             <Text style={styles.dateText}>
               {parseToDate(
-                (item as any).tradeTime || (item as any).createdAt
+                (item as any).tradeTime || (item as any).createdAt,
               ).toLocaleString("en-US", {
                 month: "short",
                 day: "numeric",
@@ -432,15 +434,13 @@ export default function JournalScreen({ navigation }: any) {
         />
       )}
 
-      {/* Floating Add Trade button for Journal */}
+      {/* Floating Notes button for Journal */}
       {showFab && (
         <TouchableOpacity
           style={styles.journalFab}
-          onPress={() =>
-            navigation.navigate("Dashboard", { screen: "AddTrade" })
-          }
+          onPress={() => navigation.navigate("Notes")}
         >
-          <Text style={styles.journalFabIcon}>＋</Text>
+          <Text style={styles.journalFabIcon}>📝</Text>
         </TouchableOpacity>
       )}
       {/* Account modal replaced by AccountDropdown */}
@@ -520,7 +520,7 @@ export default function JournalScreen({ navigation }: any) {
               const accountId = item.accountId;
               if (accountId) {
                 const currentAccounts = await getUserAccounts(
-                  (state.user && state.user.uid) || ""
+                  (state.user && state.user.uid) || "",
                 );
                 const acc =
                   currentAccounts.find((a) => a.id === accountId) ||
@@ -533,7 +533,7 @@ export default function JournalScreen({ navigation }: any) {
                     currentBalance: newBalance,
                   });
                   const refreshed = await getUserAccounts(
-                    (state.user && state.user.uid) || ""
+                    (state.user && state.user.uid) || "",
                   );
                   try {
                     dispatch &&
@@ -590,8 +590,6 @@ const styles = StyleSheet.create({
     fontSize: 26,
     color: "#0d0d0d",
     fontWeight: "800",
-    paddingHorizontal: 16,
-    paddingBottom: 96,
   },
   title: {
     color: "#f5f5f5",
@@ -797,7 +795,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   arrowIcon: {
-    color: "#00d4d4",
     fontSize: 20,
     fontWeight: "700",
   },

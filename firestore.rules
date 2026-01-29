@@ -88,5 +88,16 @@ service cloud.firestore {
       return exists(/databases/{database}/documents/accounts/$(accountId)) 
         && get(/databases/{database}/documents/accounts/$(accountId)).data.userId == userId;
     }
+        // Notes Pages (Notion-style)
+    match /users/{userId}/pages/{pageId} {
+      allow read, write, update, delete: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Notes Blocks (Notion-style)
+    match /users/{userId}/blocks/{blockId} {
+      allow read, write, update, delete: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+    }
   }
 }
