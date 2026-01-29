@@ -38,6 +38,17 @@ import AccountModal from "../components/AccountModal";
 import { useToast } from "../context/ToastContext";
 import ConfirmModal from "../components/ConfirmModal";
 import { useTheme } from "../components/ThemeProvider";
+import computeTradePnl from "../utils/tradeUtils";
+import {
+  calculatePositionSize,
+  getFXSpecs,
+  getCommoditySpecs,
+  GOLD_SPECS,
+  type InstrumentType,
+  type RiskConfig,
+  type AccountForPositionSizing,
+  type TradeForPositionSizing,
+} from "../utils/positionSizingUtils";
 
 type LabeledScreenshot = { uri: string; label?: string };
 
@@ -74,7 +85,7 @@ export default function AddTradeScreen({
   const { state, dispatch } = useAppContext();
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(
-    null,
+    null
   );
   const [checklistItems, setChecklistItems] = useState<any[]>([]);
 
@@ -126,6 +137,8 @@ export default function AddTradeScreen({
   const [accountBalance, setAccountBalance] = useState<number>(0);
   const [riskPercentage, setRiskPercentage] = useState<string>("2");
   const [positionSize, setPositionSize] = useState<number | null>(null);
+  const [instrumentType, setInstrumentType] = useState<InstrumentType>("FX");
+  const [positionSizingErrors, setPositionSizingErrors] = useState<string[]>([]);
   const [isResultAutoCalculated, setIsResultAutoCalculated] =
     useState<boolean>(false);
   const [tradeDate, setTradeDate] = useState<Date>(new Date());
@@ -364,6 +377,7 @@ export default function AddTradeScreen({
         setPair(editingTrade.pair || "GBPUSD");
         setDirection(editingTrade.direction || "Buy");
         setSession(editingTrade.session || "London");
+        setInstrumentType(editingTrade.instrumentType || "FX");
         setEntryPrice(
           editingTrade.entryPrice ? String(editingTrade.entryPrice) : "",
         );
@@ -478,60 +492,82 @@ export default function AddTradeScreen({
     }
   }, [actualExit, entryPrice, stopLoss, takeProfit, direction]);
 
-  // Position size & risk amount calculation
+  // Position size & risk amount calculation using Risk Engine
   useEffect(() => {
     if (!selectedAccountId) return;
     if (!entryPrice || !stopLoss) return;
 
-    const e = Number(entryPrice);
-    const sl = Number(stopLoss);
-    const stopDistance = Math.abs(e - sl);
-    if (stopDistance === 0) return;
+    const account: AccountForPositionSizing = {
+      balance: accountBalance,
+      currency: "USD",
+    };
 
-    // Risk amount based on percentage of account balance
-    const rp = parseFloat(riskPercentage || "0");
-    const calculatedRiskAmount = accountBalance * (rp / 100);
-    // Position size (units) = RiskAmount / StopDistance (price units)
-    const calculatedPositionSize = calculatedRiskAmount / stopDistance;
+    const trade: TradeForPositionSizing = {
+      instrumentType,
+      entryPrice: Number(entryPrice),
+      stopLossPrice: Number(stopLoss),
+      direction,
+    };
 
-    setPositionSize(parseFloat(calculatedPositionSize.toFixed(4)));
-    setRiskAmount(String(parseFloat(calculatedRiskAmount.toFixed(2))));
-  }, [selectedAccountId, accountBalance, entryPrice, stopLoss, riskPercentage]);
+    const riskConfig: RiskConfig = {
+      riskType: riskInputMode === "percentage" ? "PERCENT" : "FIXED",
+      riskValue:
+        riskInputMode === "percentage"
+          ? parseFloat(riskPercentage || "0")
+          : parseFloat(riskAmount || "0"),
+    };
 
-  // Compute monetary PnL for a trade, prioritizing actualExit when available
-  const computeTradePnl = (t: any) => {
-    try {
-      if (t?.pnl !== undefined && t?.pnl !== null) return Number(t.pnl) || 0;
-      const risk = Math.abs(Number(t?.riskAmount) || 0);
-      const entry = Number(t?.entryPrice);
-      const sl = Number(t?.stopLoss);
-      const ax =
-        t?.actualExit !== undefined && t?.actualExit !== null
-          ? Number(t.actualExit)
-          : null;
+    let instrumentSpecs: any;
+    let exchangeRate = 1;
 
-      const stopDistance = Math.abs(entry - sl);
-      if (ax !== null && !isNaN(ax) && stopDistance > 0) {
-        const exitDistance = Math.abs(ax - entry);
-        let sign = 0;
-        if (t.direction === "Buy") {
-          sign = ax > entry ? 1 : ax < entry ? -1 : 0;
-        } else {
-          sign = ax < entry ? 1 : ax > entry ? -1 : 0;
-        }
-        const pnl = sign * (exitDistance / stopDistance) * risk;
-        return Math.round(pnl * 100) / 100;
-      }
-
-      // Fallback to result-based calculation
-      const rr = Number(t?.riskToReward) || 1;
-      if (t?.result === "Win") return Math.round(risk * rr * 100) / 100;
-      if (t?.result === "Loss") return Math.round(-risk * 100) / 100;
-      return 0;
-    } catch (e) {
-      return 0;
+    switch (instrumentType) {
+      case "FX":
+        instrumentSpecs = getFXSpecs(pair);
+        break;
+      case "GOLD":
+        instrumentSpecs = GOLD_SPECS;
+        break;
+      case "COMMODITY":
+        instrumentSpecs = getCommoditySpecs(pair);
+        break;
+      case "STOCK":
+        instrumentSpecs = {};
+        break;
+      default:
+        setPositionSize(null);
+        return;
     }
-  };
+
+    const result = calculatePositionSize(
+      trade,
+      account,
+      riskConfig,
+      instrumentSpecs,
+      exchangeRate
+    );
+
+    setPositionSizingErrors(result.validationErrors);
+
+    if (result.validationErrors.length === 0) {
+      setPositionSize(
+        parseFloat(result.positionSize.toFixed(instrumentType === "STOCK" ? 0 : 4))
+      );
+      setRiskAmount(String(parseFloat(result.riskAmount.toFixed(2))));
+    } else {
+      setPositionSize(null);
+    }
+  }, [
+    selectedAccountId,
+    accountBalance,
+    entryPrice,
+    stopLoss,
+    riskPercentage,
+    riskAmount,
+    riskInputMode,
+    instrumentType,
+    pair,
+    direction,
+  ]);
 
   useEffect(() => {
     if (selectedChecklist.length > 0 && checklistItems.length > 0) {
@@ -690,6 +726,8 @@ export default function AddTradeScreen({
         riskAmount: riskAmount ? Number(riskAmount) : undefined,
         marketCondition: marketCondition || undefined,
         tradeTime: tradeTimestamp,
+        instrumentType: instrumentType || "FX",
+        positionSize: positionSize || undefined,
       };
 
       // Debug: log preview before showing confirmation
@@ -1066,6 +1104,37 @@ export default function AddTradeScreen({
             onChangeText={(t) => setPair(t.toUpperCase())}
             autoCapitalize="characters"
           />
+        </View>
+      </View>
+
+      {/* Instrument Type Selection */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Instrument Type</Text>
+          <View style={styles.sectionBadge}>
+            <Text style={styles.sectionBadgeText}>{instrumentType}</Text>
+          </View>
+        </View>
+        <View style={styles.buttonGrid}>
+          {["FX", "GOLD", "COMMODITY", "STOCK"].map((type) => (
+            <TouchableOpacity
+              key={type}
+              style={[
+                styles.gridButton,
+                instrumentType === type && styles.gridButtonActive,
+              ]}
+              onPress={() => setInstrumentType(type as InstrumentType)}
+            >
+              <Text
+                style={[
+                  styles.gridButtonText,
+                  instrumentType === type && styles.gridButtonTextActive,
+                ]}
+              >
+                {type}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 

@@ -19,17 +19,14 @@ export default function NotesScreen({ navigation }: any) {
             <Text style={styles.backBtnText}>← Pages</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity
-          style={styles.notesFab}
-          onPress={() => navigation.navigate("Journal")}
-        >
-          <Text style={styles.notesFabIcon}>📊</Text>
-        </TouchableOpacity>
       </View>
       {!selectedPage ? (
         <NotesPageList onSelectPage={setSelectedPage} />
       ) : (
-        <NotesBlockList pageId={selectedPage.pageId} />
+        <NotesBlockList
+          pageId={selectedPage.pageId}
+          pageTitle={selectedPage.title}
+        />
       )}
     </View>
   );
@@ -60,25 +57,5 @@ const styles = StyleSheet.create({
     color: "#00d4d4",
     fontWeight: "700",
     fontSize: 14,
-  },
-  notesFab: {
-    position: "absolute",
-    right: 20,
-    bottom: 40,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#00d4d4",
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 8,
-    zIndex: 60,
-  },
-  notesFabIcon: {
-    fontSize: 26,
-    color: "#0d0d0d",
-    fontWeight: "800",
-    paddingHorizontal: 16,
-    paddingBottom: 96,
   },
 });

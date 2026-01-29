@@ -17,18 +17,33 @@ import {
 } from "../services/firebaseService";
 import { NotePage } from "../types/notes";
 
-// EditablePage component for inline editing of page titles
-const EditablePage = ({ page, onUpdate }: { page: NotePage, onUpdate: (updatedPage: NotePage) => void }) => {
+// EditablePage component for viewing and editing page titles
+const EditablePage = ({
+  page,
+  onUpdate,
+  onOpenPage,
+  onDelete,
+}: {
+  page: NotePage;
+  onUpdate: (updatedPage: NotePage) => void;
+  onOpenPage: (page: NotePage) => void;
+  onDelete: (pageId: string) => void;
+}) => {
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(page.title);
-  
+
   const handleSave = () => {
     const updatedPage = {
       ...page,
-      title
+      title,
     };
     onUpdate(updatedPage);
     setIsEditing(false);
+  };
+
+  const handleEditPress = () => {
+    setTitle(page.title);
+    setIsEditing(true);
   };
 
   if (isEditing) {
@@ -51,14 +66,24 @@ const EditablePage = ({ page, onUpdate }: { page: NotePage, onUpdate: (updatedPa
   }
 
   return (
-    <TouchableOpacity 
-      style={styles.pageRow} 
-      onPress={() => setIsEditing(true)}
-      onLongPress={() => setIsEditing(true)}
-    >
-      <Text style={styles.pageIcon}>{page.icon || "📄"}</Text>
-      <Text style={styles.pageTitle}>{page.title}</Text>
-    </TouchableOpacity>
+    <View style={styles.pageRowContainer}>
+      <TouchableOpacity style={styles.pageRow} onPress={() => onOpenPage(page)}>
+        <Text style={styles.pageIcon}>{page.icon || "📄"}</Text>
+        <View style={styles.pageInfo}>
+          <Text style={styles.pageTitle}>{page.title}</Text>
+          <Text style={styles.pageSubtitle}>Tap to open</Text>
+        </View>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.editButton} onPress={handleEditPress}>
+        <Text style={styles.editButtonText}>✏️</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.deleteButton}
+        onPress={() => onDelete(page.pageId)}
+      >
+        <Text style={styles.deleteButtonText}>🗑️</Text>
+      </TouchableOpacity>
+    </View>
   );
 };
 
@@ -114,19 +139,29 @@ export default function NotesPageList({
 
   const handleUpdatePage = async (updatedPage: NotePage) => {
     if (!userId) return;
-    
+
     // Update local state optimistically
-    setPages(prevPages => 
-      prevPages.map(page => 
-        page.pageId === updatedPage.pageId ? updatedPage : page
-      )
+    setPages((prevPages) =>
+      prevPages.map((page) =>
+        page.pageId === updatedPage.pageId ? updatedPage : page,
+      ),
     );
-    
+
     // Update in Firebase
     await updateNotePage(userId, updatedPage.pageId, {
       title: updatedPage.title,
       updatedAt: new Date(),
     });
+  };
+
+  const handleDeletePage = async (pageId: string) => {
+    if (!userId) return;
+
+    // Update local state optimistically
+    setPages((prevPages) => prevPages.filter((page) => page.pageId !== pageId));
+
+    // Delete from Firebase
+    await deleteNotePage(userId, pageId);
   };
 
   return (
@@ -144,7 +179,12 @@ export default function NotesPageList({
           data={pages}
           keyExtractor={(item) => item.pageId}
           renderItem={({ item }) => (
-            <EditablePage page={item} onUpdate={handleUpdatePage} />
+            <EditablePage
+              page={item}
+              onUpdate={handleUpdatePage}
+              onOpenPage={onSelectPage}
+              onDelete={handleDeletePage}
+            />
           )}
         />
       )}
@@ -200,6 +240,49 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: "#0d0d0d",
     fontWeight: "bold",
+    fontSize: 16,
+  },
+  pageRowContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderColor: "#222",
+    backgroundColor: "#0d0d0d",
+  },
+  pageInfo: {
+    flex: 1,
+    flexDirection: "column",
+  },
+  pageSubtitle: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 2,
+  },
+  editButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "#1a1a1a",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 4,
+  },
+  editButtonText: {
+    fontSize: 16,
+  },
+  deleteButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "#f44336",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 4,
+  },
+  deleteButtonText: {
     fontSize: 16,
   },
 });

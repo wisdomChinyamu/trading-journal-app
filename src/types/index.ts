@@ -54,6 +54,7 @@ export type TradePair = string; // e.g., "GBPUSD"
 export type TradeDirection = "Buy" | "Sell";
 export type TradeSession = "London" | "NY" | "Asia";
 export type TradeGrade = "A+" | "A" | "B" | "C" | "D";
+export type InstrumentType = "FX" | "GOLD" | "COMMODITY" | "STOCK";
 
 export interface Trade {
   id: string;
@@ -82,6 +83,8 @@ export interface Trade {
   accountId?: string; // Link to specific trading account
   marketCondition?: string; // Optional market condition (Trending, Ranging, Volatile, News)
   tradeTime?: Date; // Optional timestamp for the trade (entry time override)
+  instrumentType?: InstrumentType; // FX, GOLD, COMMODITY, STOCK (defaults to FX if not specified)
+  positionSize?: number; // Calculated position size in lots/contracts/shares
 }
 
 // Psychology Log type

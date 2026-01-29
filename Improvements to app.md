@@ -630,15 +630,15 @@ i do not want that the equity curve chart should be affected by the date and tim
 when the user clicks the button to see the stats for a particular month either on the weekly summary panel, weekly summary panel small or the trading calender, make sure that they are in sync always such that when i press back on the weeklys summary panel and weekly summary panel small to see the previous months stats, the trading calender hould also go to that date and the same when i click on the today button or the forward button on either one of them -->
 
 ---------------------------------------------------------
-### The calculation for loss amount 
-should be improved in the sense that the amount risked is for the stop loss to take profit input... not the actual exit.... so yes, when the actual exit is below tp and the entry price the RR changes, but there should be anequal logic for when the actual exit being between the stop loss and entry and at times even beyond the stop loss in calculating the amount actually risked when the as a result of the actual exit making the trade a loss 
+<!-- ### The calculation for loss amount 
+should be improved in the sense that the amount risked is for the stop loss to take profit input... not the actual exit.... so yes, when the actual exit is below tp and the entry price the RR changes, but there should be anequal logic for when the actual exit being between the stop loss and entry and at times even beyond the stop loss in calculating the amount actually risked when the as a result of the actual exit making the trade a loss  -->
 
 ---------------------------------------------------------
 ###  
 This is the kind of logic you can drop straight into an app backend or mobile logic layer.
 
 
-# 1️⃣ Core Assumptions (lock these in)
+<!-- # 1️⃣ Core Assumptions (lock these in)
 
 * Account currency is known (e.g. USD)
 * User **must** provide a stop loss
@@ -872,4 +872,4 @@ scan the entire codebase to understand the current code implementation and then 
 
 1. Continue autiimatically meanign if there are any next steps just proceed to do them without having to ask me
 2. Make sure to check for any errors you may have caused in the codebase before you give me any overviews of the work done to ensure there are no errors\
-3. Focus on the work and only on the things i have asked you to do without touhing any other unrelated code or breaking the code entirely. Only focus on the concerned parts
+3. Focus on the work and only on the things i have asked you to do without touhing any other unrelated code or breaking the code entirely. Only focus on the concerned parts -->
