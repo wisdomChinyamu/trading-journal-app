@@ -73,8 +73,9 @@ export default function EquityCurveChart({
   // Build plotted equity from trades only (trade execution timestamps)
   const tradeEvents = (trades || [])
     .map((trade) => {
-      const rawDate = (trade as any).tradeTime ?? (trade as any).createdAt;
-      const pd = parseDate(rawDate) || new Date();
+      // Use tradeTime if available, otherwise use createdAt, default to now if both are missing
+      const rawDate = (trade as any).tradeTime ?? (trade as any).createdAt ?? new Date();
+      const pd = parseDate(rawDate) || new Date(); // Fallback to now if parsing fails
       let pnl = 0;
       if (trade.riskAmount) {
         if (trade.result === "Win")
@@ -86,7 +87,7 @@ export default function EquityCurveChart({
         else if (trade.result === "Loss") pnl = -1;
         else pnl = 0;
       }
-      return { date: pd, value: pnl };
+      return { date: pd, value: pnl, tradeId: trade.id }; // Added tradeId for potential reference
     })
     .sort((a, b) => a.date.getTime() - b.date.getTime());
 
@@ -99,10 +100,10 @@ export default function EquityCurveChart({
   });
 
   // Build account timeline (trades + transactions) for metrics: current balance, peak, drawdown
-  const accountEvents: Array<{ date: Date; delta: number }> = [];
+  const accountEvents: Array<{ date: Date; delta: number; type: 'trade' | 'transaction' }> = [];
   // include trades as PnL deltas at trade times
   tradeEvents.forEach((t) =>
-    accountEvents.push({ date: t.date, delta: t.value }),
+    accountEvents.push({ date: t.date, delta: t.value, type: 'trade' }),
   );
   // include transactions (deposits/withdrawals) but DO NOT include them in plotted series
   if (transactions && Array.isArray(transactions)) {
@@ -114,7 +115,7 @@ export default function EquityCurveChart({
       const amt = Number((t as any).amount) || 0;
       const signed =
         (t as any).type === "withdrawal" ? -Math.abs(amt) : Math.abs(amt);
-      accountEvents.push({ date: td, delta: signed });
+      accountEvents.push({ date: td, delta: signed, type: 'transaction' });
     });
   }
   // sort by date ascending

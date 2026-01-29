@@ -71,6 +71,15 @@ export default function DashboardScreen() {
   const [showAddTrade, setShowAddTrade] = useState(false);
   const [showFab, setShowFab] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  // Shared visible month/year for calendar and weekly summary sync
+  const today = new Date();
+  const [visibleMonth, setVisibleMonth] = useState<{
+    month: number;
+    year: number;
+  }>({
+    month: today.getMonth(),
+    year: today.getFullYear(),
+  });
   const { colors, mode } = useTheme();
   const navigation = useNavigation();
   const scrollRef = useRef<any>(null);
@@ -85,19 +94,23 @@ export default function DashboardScreen() {
     if (!trades || trades.length === 0) return [];
     if (!selectedAccountId || selectedAccountId === "all") return trades;
     return trades.filter(
-      (t) => String(t.accountId || "") === String(selectedAccountId)
+      (t) => String(t.accountId || "") === String(selectedAccountId),
     );
   }, [trades, selectedAccountId]);
   const equitySeries = React.useMemo(() => {
     if (!filteredTrades || filteredTrades.length === 0) return [];
     const withDates = filteredTrades
-        .map((t) => ({ t, date: parseDate((t as any).tradeTime) || parseDate((t as any).createdAt) }))
+      .map((t) => ({
+        t,
+        date:
+          parseDate((t as any).tradeTime) || parseDate((t as any).createdAt),
+      }))
       .filter((x) => x.date !== null) as { t: Trade; date: Date }[];
 
     if (withDates.length === 0) return [];
 
     const sorted = [...withDates].sort(
-      (a, b) => a.date.getTime() - b.date.getTime()
+      (a, b) => a.date.getTime() - b.date.getTime(),
     );
     let acc = 0;
     return sorted.map(({ t, date }) => {
@@ -122,7 +135,7 @@ export default function DashboardScreen() {
     if (filteredTrades && filteredTrades.length > 0) {
       const sum = filteredTrades.reduce(
         (s, t) => s + (Number((t as any).emotionalRating) || 0),
-        0
+        0,
       );
       return Math.round((sum / filteredTrades.length) * 10) / 10;
     }
@@ -134,7 +147,7 @@ export default function DashboardScreen() {
       const v =
         filteredTrades.reduce(
           (sum, t) => sum + (Number((t as any).confluenceScore) || 0),
-          0
+          0,
         ) / filteredTrades.length;
       return v.toFixed(1);
     }
@@ -146,16 +159,20 @@ export default function DashboardScreen() {
   const isSmallScreen = !isLargeScreen;
   const chartHeight = Math.round(Math.max(260, Math.min(520, width * 0.7)));
   // measured calendar height (used to make calendar & weekly summary cards match)
-  const [calendarMeasuredHeight, setCalendarMeasuredHeight] = useState<number | undefined>(undefined);
+  const [calendarMeasuredHeight, setCalendarMeasuredHeight] = useState<
+    number | undefined
+  >(undefined);
   const calendarCardHeight = isLargeScreen
-    ? (calendarMeasuredHeight ? calendarMeasuredHeight + 110 : 750)
+    ? calendarMeasuredHeight
+      ? calendarMeasuredHeight + 110
+      : 750
     : undefined;
 
   const accountStartingBalance = React.useMemo(() => {
     if (!selectedAccountId || selectedAccountId === "all") {
       return (state.accounts || []).reduce(
         (s, a) => s + Number(a.startingBalance || 0),
-        0
+        0,
       );
     }
     const acc = (state.accounts || []).find((a) => a.id === selectedAccountId);
@@ -195,7 +212,10 @@ export default function DashboardScreen() {
               <Text
                 style={[
                   styles.title,
-                  { color: colors.text, fontSize: 32 * scaleMultiplier * (isSmallScreen ? 0.7 : 1) },
+                  {
+                    color: colors.text,
+                    fontSize: 32 * scaleMultiplier * (isSmallScreen ? 0.7 : 1),
+                  },
                 ]}
               >
                 {(() => {
@@ -213,12 +233,12 @@ export default function DashboardScreen() {
               <View style={styles.accentLine} />
             </View>
           </View>
-            <Text
-              style={[
-                styles.subtitle,
-                { color: colors.subtext, fontSize: 15 * scaleMultiplier },
-              ]}
-            >
+          <Text
+            style={[
+              styles.subtitle,
+              { color: colors.subtext, fontSize: 15 * scaleMultiplier },
+            ]}
+          >
             Trading Performance Dashboard
           </Text>
         </View>
@@ -372,8 +392,18 @@ export default function DashboardScreen() {
             {/* Large-screen: Equity + Grade side-by-side; Small-screen: stacked */}
             {isLargeScreen ? (
               <View style={{ flexDirection: "row", gap: 16 }}>
-                <View style={[styles.chartCard, { backgroundColor: colors.surface, flex: 2, padding: 12, marginBottom: 12 }]}>
-                  <View style={[styles.cardHeader, { marginBottom: 8 }] }>
+                <View
+                  style={[
+                    styles.chartCard,
+                    {
+                      backgroundColor: colors.surface,
+                      flex: 2,
+                      padding: 12,
+                      marginBottom: 12,
+                    },
+                  ]}
+                >
+                  <View style={[styles.cardHeader, { marginBottom: 8 }]}>
                     <Text
                       style={[
                         styles.cardTitle,
@@ -383,139 +413,25 @@ export default function DashboardScreen() {
                       Equity Curve
                     </Text>
                     <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{trades.length} Trades</Text>
-                    </View>
-                  </View>
-                  <EquityChart series={equitySeries} height={chartHeight} startingBalance={accountStartingBalance} leftPadding={16} />
-                </View>
-
-                <View style={[styles.chartCard, { backgroundColor: colors.surface, flex: 1 }]}>
-                  <View style={styles.cardHeader}>
-                    <Text
-                      style={[
-                        styles.cardTitle,
-                        { color: colors.text, fontSize: 18 * scaleMultiplier },
-                      ]}
-                    >
-                      Grade Distribution
-                    </Text>
-                  </View>
-                  <View style={styles.gradeContainer}>
-                {(["A+", "A", "B", "C", "D"] as const).map((grade) => {
-                  const count = filteredTrades.filter(
-                    (t) => t.grade === grade
-                  ).length;
-                  const total = filteredTrades.length || 1;
-                  const percentage = (count / total) * 100;
-
-                  return (
-                    <View key={grade} style={styles.gradeItem}>
-                      <View style={styles.gradeHeader}>
-                        <Text
-                          style={[styles.gradeLabel, { color: colors.text }]}
-                        >
-                          {grade}
-                        </Text>
-                        <Text
-                          style={[styles.gradeCount, { color: colors.subtext }]}
-                        >
-                          {count}
-                        </Text>
-                      </View>
-                      <View
-                        style={[
-                          styles.gradeBar,
-                          { backgroundColor: colors.neutral },
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.gradeBarFill,
-                            {
-                              width: `${percentage}%`,
-                              backgroundColor: grade.startsWith("A")
-                                ? colors.profitEnd
-                                : grade === "B"
-                                ? colors.highlight
-                                : colors.lossEnd,
-                            },
-                          ]}
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          styles.gradePercentage,
-                          { color: colors.subtext },
-                        ]}
-                      >
-                        {percentage.toFixed(0)}%
+                      <Text style={styles.badgeText}>
+                        {trades.length} Trades
                       </Text>
                     </View>
-                  );
-                })}
                   </View>
-                </View>
-              </View>
-            ) : (
-              // small screen: equity, calendar, weekly small, grade distribution (existing order)
-              <>
-                <View style={[styles.chartCard, { backgroundColor: colors.surface, padding: 12, marginBottom: 12 }]}> 
-                  <View style={[styles.cardHeader, { marginBottom: 8 }] }>
-                    <Text
-                      style={[
-                        styles.cardTitle,
-                        { color: colors.text, fontSize: 18 * scaleMultiplier },
-                      ]}
-                    >
-                      Equity Curve
-                    </Text>
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{trades.length} Trades</Text>
-                    </View>
-                  </View>
-                  <EquityChart series={equitySeries} height={chartHeight} startingBalance={accountStartingBalance} leftPadding={16} />
-                </View>
-
-                <View style={[styles.chartCard, { backgroundColor: colors.surface }]}> 
-                  <View style={styles.cardHeader}>
-                    <Text
-                      style={[
-                        styles.cardTitle,
-                        { color: colors.text, fontSize: 18 * scaleMultiplier },
-                      ]}
-                    >
-                      Trading Calendar
-                    </Text>
-                    <Text
-                      style={[
-                        styles.cardSubtitle,
-                        { color: colors.subtext, fontSize: 13 * scaleMultiplier },
-                      ]}
-                    >
-                      Tap a day to view trades
-                    </Text>
-                  </View>
-                  <CalendarHeatmap
-                    trades={filteredTrades}
-                    onDayPress={(date) => setSelectedDate(date)}
-                    theme={mode}
+                  <EquityChart
+                    series={equitySeries}
+                    height={chartHeight}
+                    startingBalance={accountStartingBalance}
+                    leftPadding={16}
                   />
                 </View>
 
-                {/* Small-screen Weekly Summary directly below calendar */}
-                {!isLargeScreen && (
-                  <View
-                    style={[
-                      styles.chartCard,
-                      { backgroundColor: colors.surface, marginTop: 8 },
-                    ]}
-                  >
-                    <WeeklySummaryPanelSmall trades={filteredTrades} />
-                  </View>
-                )}
-
-                {/* Grade Distribution */}
-                <View style={[styles.chartCard, { backgroundColor: colors.surface }]}> 
+                <View
+                  style={[
+                    styles.chartCard,
+                    { backgroundColor: colors.surface, flex: 1 },
+                  ]}
+                >
                   <View style={styles.cardHeader}>
                     <Text
                       style={[
@@ -529,7 +445,7 @@ export default function DashboardScreen() {
                   <View style={styles.gradeContainer}>
                     {(["A+", "A", "B", "C", "D"] as const).map((grade) => {
                       const count = filteredTrades.filter(
-                        (t) => t.grade === grade
+                        (t) => t.grade === grade,
                       ).length;
                       const total = filteredTrades.length || 1;
                       const percentage = (count / total) * 100;
@@ -538,12 +454,18 @@ export default function DashboardScreen() {
                         <View key={grade} style={styles.gradeItem}>
                           <View style={styles.gradeHeader}>
                             <Text
-                              style={[styles.gradeLabel, { color: colors.text }]}
+                              style={[
+                                styles.gradeLabel,
+                                { color: colors.text },
+                              ]}
                             >
                               {grade}
                             </Text>
                             <Text
-                              style={[styles.gradeCount, { color: colors.subtext }]}
+                              style={[
+                                styles.gradeCount,
+                                { color: colors.subtext },
+                              ]}
                             >
                               {count}
                             </Text>
@@ -562,14 +484,190 @@ export default function DashboardScreen() {
                                   backgroundColor: grade.startsWith("A")
                                     ? colors.profitEnd
                                     : grade === "B"
-                                    ? colors.highlight
-                                    : colors.lossEnd,
+                                      ? colors.highlight
+                                      : colors.lossEnd,
                                 },
                               ]}
                             />
                           </View>
                           <Text
-                            style={[styles.gradePercentage, { color: colors.subtext }]}
+                            style={[
+                              styles.gradePercentage,
+                              { color: colors.subtext },
+                            ]}
+                          >
+                            {percentage.toFixed(0)}%
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              </View>
+            ) : (
+              // small screen: equity, calendar, weekly small, grade distribution (existing order)
+              <>
+                <View
+                  style={[
+                    styles.chartCard,
+                    {
+                      backgroundColor: colors.surface,
+                      padding: 12,
+                      marginBottom: 12,
+                    },
+                  ]}
+                >
+                  <View style={[styles.cardHeader, { marginBottom: 8 }]}>
+                    <Text
+                      style={[
+                        styles.cardTitle,
+                        { color: colors.text, fontSize: 18 * scaleMultiplier },
+                      ]}
+                    >
+                      Equity Curve
+                    </Text>
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>
+                        {trades.length} Trades
+                      </Text>
+                    </View>
+                  </View>
+                  <EquityChart
+                    series={equitySeries}
+                    height={chartHeight}
+                    startingBalance={accountStartingBalance}
+                    leftPadding={16}
+                  />
+                </View>
+
+                <View
+                  style={[
+                    styles.chartCard,
+                    { backgroundColor: colors.surface },
+                  ]}
+                >
+                  <View style={styles.cardHeader}>
+                    <Text
+                      style={[
+                        styles.cardTitle,
+                        { color: colors.text, fontSize: 18 * scaleMultiplier },
+                      ]}
+                    >
+                      Trading Calendar
+                    </Text>
+                    <Text
+                      style={[
+                        styles.cardSubtitle,
+                        {
+                          color: colors.subtext,
+                          fontSize: 13 * scaleMultiplier,
+                        },
+                      ]}
+                    >
+                      Tap a day to view trades
+                    </Text>
+                  </View>
+                  <CalendarHeatmap
+                    trades={filteredTrades}
+                    onDayPress={(date) => setSelectedDate(date)}
+                    theme={mode}
+                    currentMonth={visibleMonth.month}
+                    currentYear={visibleMonth.year}
+                    onMonthYearChange={(m, y) =>
+                      setVisibleMonth({ month: m, year: y })
+                    }
+                  />
+                </View>
+
+                {/* Small-screen Weekly Summary directly below calendar */}
+                {!isLargeScreen && (
+                  <View
+                    style={[
+                      styles.chartCard,
+                      { backgroundColor: colors.surface, marginTop: 8 },
+                    ]}
+                  >
+                    <WeeklySummaryPanelSmall
+                      trades={filteredTrades}
+                      currentMonth={visibleMonth.month}
+                      currentYear={visibleMonth.year}
+                      onMonthYearChange={(m, y) =>
+                        setVisibleMonth({ month: m, year: y })
+                      }
+                    />
+                  </View>
+                )}
+
+                {/* Grade Distribution */}
+                <View
+                  style={[
+                    styles.chartCard,
+                    { backgroundColor: colors.surface },
+                  ]}
+                >
+                  <View style={styles.cardHeader}>
+                    <Text
+                      style={[
+                        styles.cardTitle,
+                        { color: colors.text, fontSize: 18 * scaleMultiplier },
+                      ]}
+                    >
+                      Grade Distribution
+                    </Text>
+                  </View>
+                  <View style={styles.gradeContainer}>
+                    {(["A+", "A", "B", "C", "D"] as const).map((grade) => {
+                      const count = filteredTrades.filter(
+                        (t) => t.grade === grade,
+                      ).length;
+                      const total = filteredTrades.length || 1;
+                      const percentage = (count / total) * 100;
+
+                      return (
+                        <View key={grade} style={styles.gradeItem}>
+                          <View style={styles.gradeHeader}>
+                            <Text
+                              style={[
+                                styles.gradeLabel,
+                                { color: colors.text },
+                              ]}
+                            >
+                              {grade}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.gradeCount,
+                                { color: colors.subtext },
+                              ]}
+                            >
+                              {count}
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.gradeBar,
+                              { backgroundColor: colors.neutral },
+                            ]}
+                          >
+                            <View
+                              style={[
+                                styles.gradeBarFill,
+                                {
+                                  width: `${percentage}%`,
+                                  backgroundColor: grade.startsWith("A")
+                                    ? colors.profitEnd
+                                    : grade === "B"
+                                      ? colors.highlight
+                                      : colors.lossEnd,
+                                },
+                              ]}
+                            />
+                          </View>
+                          <Text
+                            style={[
+                              styles.gradePercentage,
+                              { color: colors.subtext },
+                            ]}
                           >
                             {percentage.toFixed(0)}%
                           </Text>
@@ -584,7 +682,16 @@ export default function DashboardScreen() {
             {/* For large screens: Trading Calendar + Weekly Summary side-by-side */}
             {isLargeScreen && (
               <View style={{ flexDirection: "row", gap: 16 }}>
-                <View style={[styles.chartCard, { backgroundColor: colors.surface, flex: 2, height: calendarCardHeight }]}> 
+                <View
+                  style={[
+                    styles.chartCard,
+                    {
+                      backgroundColor: colors.surface,
+                      flex: 2,
+                      height: calendarCardHeight,
+                    },
+                  ]}
+                >
                   <View style={styles.cardHeader}>
                     <Text
                       style={[
@@ -597,7 +704,10 @@ export default function DashboardScreen() {
                     <Text
                       style={[
                         styles.cardSubtitle,
-                        { color: colors.subtext, fontSize: 13 * scaleMultiplier },
+                        {
+                          color: colors.subtext,
+                          fontSize: 13 * scaleMultiplier,
+                        },
                       ]}
                     >
                       Tap a day to view trades
@@ -607,6 +717,11 @@ export default function DashboardScreen() {
                     trades={filteredTrades}
                     onDayPress={(date) => setSelectedDate(date)}
                     theme={mode}
+                    currentMonth={visibleMonth.month}
+                    currentYear={visibleMonth.year}
+                    onMonthYearChange={(m, y) =>
+                      setVisibleMonth({ month: m, year: y })
+                    }
                     onMeasureHeight={(h) => {
                       // only set when on large screens to avoid thrash
                       if (isLargeScreen) setCalendarMeasuredHeight(h);
@@ -614,12 +729,29 @@ export default function DashboardScreen() {
                   />
                 </View>
 
-                <View style={[styles.chartCard, { backgroundColor: colors.surface, flex: 1, height: calendarCardHeight }]}> 
+                <View
+                  style={[
+                    styles.chartCard,
+                    {
+                      backgroundColor: colors.surface,
+                      flex: 1,
+                      height: calendarCardHeight,
+                    },
+                  ]}
+                >
                   <ScrollView
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={{ paddingVertical: 8 }}
                   >
-                    <WeeklySummaryPanel trades={filteredTrades} layout="vertical" />
+                    <WeeklySummaryPanel
+                      trades={filteredTrades}
+                      layout="vertical"
+                      currentMonth={visibleMonth.month}
+                      currentYear={visibleMonth.year}
+                      onMonthYearChange={(m, y) =>
+                        setVisibleMonth({ month: m, year: y })
+                      }
+                    />
                   </ScrollView>
                 </View>
               </View>
@@ -798,7 +930,7 @@ export default function DashboardScreen() {
 
                   const currentAccounts = await getUserAccounts(userId);
                   const acc = currentAccounts.find(
-                    (a: any) => a.id === accountId
+                    (a: any) => a.id === accountId,
                   );
                   if (acc) {
                     const newBalance =
@@ -818,7 +950,7 @@ export default function DashboardScreen() {
               } catch (errAcc) {
                 console.error(
                   "Failed to update account balance after trade",
-                  errAcc
+                  errAcc,
                 );
               }
 
@@ -864,7 +996,7 @@ function AddTradeModalAnimated({ visible, onClose, onSubmit }: any) {
   const [selectedAccountId, setSelectedAccountId] = useState<string>(""); // State for selected account
   const [strategies, setStrategies] = useState<Strategy[]>([]); // State for strategies
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(
-    null
+    null,
   ); // State for selected strategy
   const [checklistItems, setChecklistItems] = useState<any[]>([]); // State for checklist items
   const [selectedChecklistItems, setSelectedChecklistItems] = useState<
@@ -928,7 +1060,7 @@ function AddTradeModalAnimated({ visible, onClose, onSubmit }: any) {
       // Calculate confluence score using the proper formula
       const score = calculateConfluenceScore(
         selectedChecklistItems,
-        itemWeights
+        itemWeights,
       );
       setConfluenceScore(parseFloat(score.toFixed(2)));
     } else {
@@ -1072,7 +1204,7 @@ function DayTradesModalAnimated({ visible, date, trades, onClose }: any) {
             const localDateKey = (d: Date) =>
               `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
                 2,
-                "0"
+                "0",
               )}-${String(d.getDate()).padStart(2, "0")}`;
             const dateKey = dateObj ? localDateKey(dateObj) : "";
             const tradesOnDate = trades.filter((t: any) => {

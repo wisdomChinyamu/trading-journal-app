@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -27,8 +27,7 @@ export default function JournalScreen({ navigation }: any) {
   const toast = useToast();
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [tradeToDelete, setTradeToDelete] = useState<any>(null);
-  const [showFab, setShowFab] = useState(true);
-  const scrollRef = useRef<any>(null);
+  // FAB always visible per UX requirement
   const [filterPair, setFilterPair] = useState("");
   const [filterResult, setFilterResult] = useState("");
   const [sortBy, setSortBy] = useState<"date" | "grade" | "rr">("date");
@@ -267,21 +266,7 @@ export default function JournalScreen({ navigation }: any) {
   };
 
   return (
-    <ScrollView
-      ref={scrollRef}
-      style={styles.container}
-      showsVerticalScrollIndicator={false}
-      onScroll={(e) => {
-        try {
-          const { contentOffset, layoutMeasurement, contentSize } =
-            e.nativeEvent;
-          const distanceFromBottom =
-            contentSize.height - (contentOffset.y + layoutMeasurement.height);
-          setShowFab(!(distanceFromBottom <= 120));
-        } catch (err) {}
-      }}
-      scrollEventThrottle={16}
-    >
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Header with Stats */}
       <View style={styles.header}></View>
 
@@ -434,15 +419,13 @@ export default function JournalScreen({ navigation }: any) {
         />
       )}
 
-      {/* Floating Notes button for Journal */}
-      {showFab && (
-        <TouchableOpacity
-          style={styles.journalFab}
-          onPress={() => navigation.navigate("Notes")}
-        >
-          <Text style={styles.journalFabIcon}>📝</Text>
-        </TouchableOpacity>
-      )}
+      {/* Floating Notes button for Journal (always visible) */}
+      <TouchableOpacity
+        style={styles.journalFab}
+        onPress={() => navigation.navigate("Notes")}
+      >
+        <Text style={styles.journalFabIcon}>📝</Text>
+      </TouchableOpacity>
       {/* Account modal replaced by AccountDropdown */}
       <ConfirmModal
         visible={confirmVisible}

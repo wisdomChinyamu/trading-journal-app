@@ -18,6 +18,10 @@ interface CalendarHeatmapProps {
   onDayPress?: (date: Date) => void;
   theme?: "dark" | "light";
   onMeasureHeight?: (h: number) => void;
+  // New props to support synchronization
+  currentMonth?: number;
+  currentYear?: number;
+  onMonthYearChange?: (month: number, year: number) => void;
 }
 
 export default function CalendarHeatmap({
@@ -25,6 +29,10 @@ export default function CalendarHeatmap({
   onDayPress,
   theme = "dark",
   onMeasureHeight,
+  // Initialize with current month/year if provided, otherwise use current date
+  currentMonth: propMonth = new Date().getMonth(),
+  currentYear: propYear = new Date().getFullYear(),
+  onMonthYearChange,
 }: CalendarHeatmapProps) {
   const { colors } = useTheme();
   const toDate = (value: any): Date | null => {
@@ -45,8 +53,9 @@ export default function CalendarHeatmap({
     return isNaN(d.getTime()) ? null : d;
   };
   const now = new Date();
-  const [monthIndex, setMonthIndex] = useState(now.getMonth());
-  const [yearIdx, setYearIdx] = useState(now.getFullYear());
+  // Use prop values if provided, otherwise use current date
+  const [monthIndex, setMonthIndex] = useState(propMonth);
+  const [yearIdx, setYearIdx] = useState(propYear);
   const year = yearIdx;
   const month = monthIndex;
 
@@ -58,6 +67,12 @@ export default function CalendarHeatmap({
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
   const isTablet = windowWidth >= breakpoints.tablet;
   const isDesktop = windowWidth >= breakpoints.desktop;
+
+  // Update internal state when prop values change
+  React.useEffect(() => {
+    setMonthIndex(propMonth);
+    setYearIdx(propYear);
+  }, [propMonth, propYear]);
 
   React.useEffect(() => {
     const subscription = Dimensions.addEventListener("change", ({ window }) => {
@@ -222,27 +237,38 @@ export default function CalendarHeatmap({
   };
 
   const goToPrevMonth = () => {
+    let newMonth, newYear;
     if (month === 0) {
-      setMonthIndex(11);
-      setYearIdx(year - 1);
+      newMonth = 11;
+      newYear = year - 1;
     } else {
-      setMonthIndex(month - 1);
+      newMonth = month - 1;
+      newYear = year;
     }
+    setMonthIndex(newMonth);
+    setYearIdx(newYear);
+    onMonthYearChange?.(newMonth, newYear);
   };
 
   const goToNextMonth = () => {
+    let newMonth, newYear;
     if (month === 11) {
-      setMonthIndex(0);
-      setYearIdx(year + 1);
+      newMonth = 0;
+      newYear = year + 1;
     } else {
-      setMonthIndex(month + 1);
+      newMonth = month + 1;
+      newYear = year;
     }
+    setMonthIndex(newMonth);
+    setYearIdx(newYear);
+    onMonthYearChange?.(newMonth, newYear);
   };
 
   const goToToday = () => {
     const today = new Date();
     setMonthIndex(today.getMonth());
     setYearIdx(today.getFullYear());
+    onMonthYearChange?.(today.getMonth(), today.getFullYear());
   };
 
   const getResponsiveCellPixelWidth = (): number => {

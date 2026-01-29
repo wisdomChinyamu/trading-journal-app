@@ -13,6 +13,10 @@ import { Trade } from "../types";
 interface WeeklySummaryPanelProps {
   trades: Trade[];
   layout?: "horizontal" | "vertical";
+  // New props to support synchronization
+  currentMonth?: number;
+  currentYear?: number;
+  onMonthYearChange?: (month: number, year: number) => void;
 }
 
 function getWeekRanges(
@@ -38,6 +42,10 @@ function getWeekRanges(
 export default function WeeklySummaryPanel({
   trades,
   layout = "vertical",
+  // Initialize with current month/year if provided, otherwise use current date
+  currentMonth: propMonth = new Date().getMonth(),
+  currentYear: propYear = new Date().getFullYear(),
+  onMonthYearChange,
 }: WeeklySummaryPanelProps) {
   const { colors } = useTheme();
   const { state } = useAppContext();
@@ -63,9 +71,10 @@ export default function WeeklySummaryPanel({
     return isNaN(d.getTime()) ? null : d;
   };
   const now = new Date();
+  // Use prop values if provided, otherwise use current date
   const [selectedMonth, setSelectedMonth] = useState({
-    year: now.getFullYear(),
-    month: now.getMonth(),
+    year: propYear,
+    month: propMonth,
   });
   const { year, month } = selectedMonth;
   const weekRanges = getWeekRanges(year, month);
@@ -112,24 +121,49 @@ export default function WeeklySummaryPanel({
     weeklyStats[0]
   );
 
+  // Update internal state when prop values change
+  React.useEffect(() => {
+    setSelectedMonth({
+      year: propYear,
+      month: propMonth,
+    });
+  }, [propMonth, propYear]);
+
   const goToPrevMonth = () => {
+    let newMonth, newYear;
     if (month === 0) {
-      setSelectedMonth({ year: year - 1, month: 11 });
+      newMonth = 11;
+      newYear = year - 1;
     } else {
-      setSelectedMonth({ year, month: month - 1 });
+      newMonth = month - 1;
+      newYear = year;
     }
+    const newSelection = { year: newYear, month: newMonth };
+    setSelectedMonth(newSelection);
+    onMonthYearChange?.(newMonth, newYear);
   };
 
   const goToNextMonth = () => {
+    let newMonth, newYear;
     if (month === 11) {
-      setSelectedMonth({ year: year + 1, month: 0 });
+      newMonth = 0;
+      newYear = year + 1;
     } else {
-      setSelectedMonth({ year, month: month + 1 });
+      newMonth = month + 1;
+      newYear = year;
     }
+    const newSelection = { year: newYear, month: newMonth };
+    setSelectedMonth(newSelection);
+    onMonthYearChange?.(newMonth, newYear);
   };
 
   const goToCurrentMonth = () => {
-    setSelectedMonth({ year: now.getFullYear(), month: now.getMonth() });
+    const newSelection = {
+      year: now.getFullYear(),
+      month: now.getMonth(),
+    };
+    setSelectedMonth(newSelection);
+    onMonthYearChange?.(now.getMonth(), now.getFullYear());
   };
 
   return (

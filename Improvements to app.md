@@ -614,20 +614,20 @@ navigating between the trade journal screen and the notes section should be via 
 
 
 ----------------------------------------------------------
-## The Add Trade Screen UI
+<!-- ## The Add Trade Screen UI
 Have the actual exit and win, loss and breakeven section to appear directly below where the take profit section is 
-Have the back button look more like it was designed by a professional not the way it is currently implemented, it looks to novice like
+Have the back button look more like it was designed by a professional not the way it is currently implemented, it looks to novice like -->
 
 ----------------------------------------------------------
-## THE ACCOUNT TRANSACTIONS
+<!-- ## THE ACCOUNT TRANSACTIONS
 i want that the user should be able to specify the date and time the user deposited and withdrew cash from the account and these transactions arrangement should respect the users input of date and time not the date and time the transaction information was added to the database
 i want that the equity curve chat on the analytics page should use this date and time the user inputs to affect the calculation of the current balance at a particular point as well as on the accounts card and also for the dropdown to select the account to filter the information by on the trade journal, dashboard adn the analytics page's current balance of each account should be affected by the date the user inputs of when the transaction was carried out
 make sure the logic for this is so that the current balance calculations match the actual current balance
-i do not want that the equity curve chart should be affected by the date and time the transaction was added to the database but the calculation of the current balance, peak and drawdown should be affected by the date and time the user inputs... this means any transaction that is added to the database should be used only in the calculations of the current balance, peak and drawdown
+i do not want that the equity curve chart should be affected by the date and time the transaction was added to the database but the calculation of the current balance, peak and drawdown should be affected by the date and time the user inputs... this means any transaction that is added to the database should be used only in the calculations of the current balance, peak and drawdown -->
 
 ---------------------------------------------------------
-### TRADING CALENDER AND WEEKLY SUMMARY PANEL SYNC
-when the user clicks the button to see the stats for a particular month either on the weekly summary panel, weekly summary panel small or the trading calender, make sure that they are in sync always such that when i press back on the weeklys summary panel and weekly summary panel small to see the previous months stats, the trading calender hould also go to that date and the same when i click on the today button or the forward button on either one of them
+<!-- ### TRADING CALENDER AND WEEKLY SUMMARY PANEL SYNC
+when the user clicks the button to see the stats for a particular month either on the weekly summary panel, weekly summary panel small or the trading calender, make sure that they are in sync always such that when i press back on the weeklys summary panel and weekly summary panel small to see the previous months stats, the trading calender hould also go to that date and the same when i click on the today button or the forward button on either one of them -->
 
 ---------------------------------------------------------
 ### The calculation for loss amount 
@@ -635,13 +635,8 @@ should be improved in the sense that the amount risked is for the stop loss to t
 
 ---------------------------------------------------------
 ###  
-Bet. I’ll keep this **clean, brutal, and build-ready** — not academic fluff.
-
-We’ll design **one core risk engine**, then **instrument adapters** for **FX, Gold, Commodities, and Stocks**.
-
 This is the kind of logic you can drop straight into an app backend or mobile logic layer.
 
----
 
 # 1️⃣ Core Assumptions (lock these in)
 
