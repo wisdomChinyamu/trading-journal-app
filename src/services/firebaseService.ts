@@ -122,12 +122,23 @@ import {
   RoutineItem, // Add RoutineItem import
 } from "../types";
 
-// Utility function to remove undefined values from an object
+// Utility function to remove undefined values from an object (recursive)
 function removeUndefinedFields(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj !== "object" || obj instanceof Date) return obj;
+  if (Array.isArray(obj)) {
+    return obj.map((item) => removeUndefinedFields(item)).filter((item) => item !== undefined);
+  }
   const filteredObj: any = {};
   Object.keys(obj).forEach((key) => {
-    if (obj[key] !== undefined) {
-      filteredObj[key] = obj[key];
+    const value = obj[key];
+    if (value !== undefined) {
+      // Recursively clean nested objects
+      if (typeof value === "object" && value !== null && !(value instanceof Date)) {
+        filteredObj[key] = removeUndefinedFields(value);
+      } else {
+        filteredObj[key] = value;
+      }
     }
   });
   return filteredObj;

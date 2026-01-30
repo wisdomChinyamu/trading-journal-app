@@ -54,14 +54,23 @@ const ImageUploadModal = ({
         activeOpacity={1}
         onPress={onCancel}
       >
-        <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
-          <Text style={styles.modalTitle}>Add Image</Text>
+        <View
+          style={styles.modalContent}
+          onStartShouldSetResponder={() => true}
+        >
+          <View style={styles.modalHeaderRow}>
+            <Text style={styles.modalTitle}>Add Image</Text>
+            <TouchableOpacity onPress={onCancel} style={styles.closeButton}>
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+          </View>
           <ImageUploader
             screenshots={screenshots}
             onAdd={(uri: string) => {
-              // when uploader gives us a URI, notify parent and close
+              // Keep modal open while image is being processed
+              // User must explicitly close after selecting
+              setScreenshots((s) => [...s, { uri }]);
               onImageUrl(uri);
-              onCancel();
             }}
             onRemove={(uri: string) =>
               setScreenshots((s) => s.filter((x) => x.uri !== uri))
@@ -81,11 +90,21 @@ const EditableBlock = ({
   onUpdate,
   onDelete,
   onAddBlockAfter,
+  isEditingProp,
+  setEditingBlockId,
+  blockIndex,
+  totalBlocks,
+  onNavigateBlock,
 }: {
   block: NoteBlock;
   onUpdate: (updatedBlock: NoteBlock) => void;
   onDelete: (blockId: string) => void;
   onAddBlockAfter: (blockType: string) => Promise<string | null>;
+  isEditingProp?: boolean;
+  setEditingBlockId?: (id: string | null) => void;
+  blockIndex?: number;
+  totalBlocks?: number;
+  onNavigateBlock?: (index: number) => void;
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [text, setText] = useState(block.properties?.text || "");
@@ -116,11 +135,39 @@ const EditableBlock = ({
     };
     onUpdate(updatedBlock);
     setIsEditing(false);
+    setEditingBlockId?.(null);
   };
 
   const handleKeyPress = (e: any) => {
     const key = e?.nativeEvent?.key;
     const shift = e?.nativeEvent?.shiftKey;
+
+    // Arrow navigation
+    if (key === "ArrowUp" || key === "ArrowDown") {
+      if (blockIndex !== undefined && onNavigateBlock) {
+        try {
+          e.preventDefault?.();
+        } catch (err) {}
+
+        if (key === "ArrowUp" && blockIndex > 0) {
+          handleSave();
+          onNavigateBlock(blockIndex - 1);
+          return;
+        }
+        if (
+          key === "ArrowDown" &&
+          blockIndex !== undefined &&
+          totalBlocks !== undefined &&
+          blockIndex < totalBlocks - 1
+        ) {
+          handleSave();
+          onNavigateBlock(blockIndex + 1);
+          return;
+        }
+      }
+      return;
+    }
+
     if (key === "Enter") {
       // Shift+Enter -> insert newline
       if (shift) {
@@ -139,69 +186,47 @@ const EditableBlock = ({
   };
 
   const handleTextChange = (newText: string) => {
-    // detect and handle headings
-    const headingMatch = newText.match(/^(#{1,3})\s+/);
-    if (headingMatch) {
+    // detect and handle headings at the start of line
+    const headingMatch = newText.match(/^(#{1,3})\s+(.*)$/);
+    if (headingMatch && newText.trim().startsWith("#")) {
       const level = headingMatch[1].length;
       const newType =
         level === 1 ? "heading" : level === 2 ? "heading2" : "heading3";
       const cleaned = newText.replace(/^(#{1,3})\s+/, "");
+      setText(cleaned);
       onUpdate({
         ...block,
         type: newType,
         properties: { ...block.properties, text: cleaned },
       });
-      setIsEditing(false);
       return;
     }
 
-    // divider
-    if (newText.endsWith("---")) {
-      onUpdate({ ...block, type: "divider", properties: {} });
+    // divider: detect exactly "---" and convert
+    if (
+      newText === "---" ||
+      (newText.endsWith("\n---") && newText.trim() === "---")
+    ) {
+      onUpdate({ ...block, type: "divider", properties: { text: "" } });
       setShowSlashMenu(false);
+      setText("");
       void onAddBlockAfter("paragraph");
       return;
     }
 
-    const slashTokenMatch = newText.match(/(^|\s)\/(\S*)$/);
-    if (slashTokenMatch) {
+    // detect slash command start: "/" followed by optional chars, at start or after space
+    const slashMatch = newText.match(/\/(\w*)$/);
+    if (slashMatch !== null) {
+      // User is typing a slash command
       setShowSlashMenu(true);
-      setSlashSearch(slashTokenMatch[2] || "");
+      setSlashSearch(slashMatch[1] || "");
       setText(newText);
       return;
-    }
-
-    // execute inline /cmd
-    const execMatch = newText.match(/(^|\s)\/(\S+)\s$/);
-    if (execMatch) {
-      const cmd = execMatch[2].toLowerCase();
-      setShowSlashMenu(false);
-      setSlashSearch("");
-      if (cmd === "image") {
-        setShowImageModal(true);
-        return;
-      }
-      if (cmd === "divider") {
-        onUpdate({ ...block, type: "divider", properties: {} });
-        void onAddBlockAfter("paragraph");
-        return;
-      }
-      if (cmd === "todo" || cmd === "list" || cmd === "quote") {
-        onUpdate({ ...block, type: cmd, properties: { text: "" } });
-        setIsEditing(false);
-        void onAddBlockAfter("paragraph");
-        return;
-      }
-      if (cmd === "h1" || cmd === "h2" || cmd === "h3") {
-        const map: Record<string, string> = {
-          h1: "heading",
-          h2: "heading2",
-          h3: "heading3",
-        };
-        onUpdate({ ...block, type: map[cmd], properties: { text: "" } });
-        setIsEditing(false);
-        void onAddBlockAfter("paragraph");
-        return;
+    } else {
+      // Not in slash mode anymore
+      if (showSlashMenu) {
+        setShowSlashMenu(false);
+        setSlashSearch("");
       }
     }
 
@@ -210,16 +235,18 @@ const EditableBlock = ({
   };
 
   const handleSlashCommand = (command: SlashCommand) => {
-    const cleanText = text.replace(/\/$/, "");
+    // Remove the "/" and search text from input before executing command
+    const cleanText = text.replace(/\/\w*$/, "");
     setText(cleanText);
+    setShowSlashMenu(false);
+    setSlashSearch("");
+
     if (command.type === "image") {
       setShowImageModal(true);
-      setShowSlashMenu(false);
       return;
     }
     if (command.type === "divider") {
-      onUpdate({ ...block, type: "divider", properties: {} });
-      setShowSlashMenu(false);
+      onUpdate({ ...block, type: "divider", properties: { text: cleanText } });
       void onAddBlockAfter("paragraph");
       return;
     }
@@ -228,8 +255,11 @@ const EditableBlock = ({
       command.type === "list" ||
       command.type === "quote"
     ) {
-      onUpdate({ ...block, type: command.type, properties: { text: "" } });
-      setShowSlashMenu(false);
+      onUpdate({
+        ...block,
+        type: command.type,
+        properties: { text: cleanText },
+      });
       setIsEditing(false);
       void onAddBlockAfter("paragraph");
       return;
@@ -239,13 +269,15 @@ const EditableBlock = ({
       command.type === "heading2" ||
       command.type === "heading3"
     ) {
-      onUpdate({ ...block, type: command.type, properties: { text: "" } });
-      setShowSlashMenu(false);
+      onUpdate({
+        ...block,
+        type: command.type,
+        properties: { text: cleanText },
+      });
       setIsEditing(false);
       void onAddBlockAfter("paragraph");
       return;
     }
-    setShowSlashMenu(false);
   };
 
   const handleImagePaste = (imageUrl: string) => {
@@ -257,7 +289,23 @@ const EditableBlock = ({
       properties: { ...block.properties, url: imageUrl, text: "" },
     });
     setIsEditing(false);
+    setEditingBlockId?.(null);
   };
+
+  const inputRef = React.useRef<TextInput | null>(null);
+
+  React.useEffect(() => {
+    if (isEditingProp) {
+      setIsEditing(true);
+    }
+  }, [isEditingProp]);
+
+  React.useEffect(() => {
+    if (isEditing) {
+      setTimeout(() => inputRef.current?.focus?.(), 30);
+      setEditingBlockId?.(block.blockId);
+    }
+  }, [isEditing]);
 
   if (isEditing) {
     return (
@@ -276,6 +324,7 @@ const EditableBlock = ({
             </View>
           ) : (
             <TextInput
+              ref={inputRef}
               style={[styles.editableInput, { borderWidth: 0 }]}
               value={text}
               onChangeText={handleTextChange}
@@ -337,6 +386,7 @@ export default function NotesBlockList({
   const { state } = useAppContext();
   const userId = state.user?.uid;
   const [blocks, setBlocks] = useState<NoteBlock[]>([]);
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [editingPageTitle, setEditingPageTitle] = useState(false);
   const [newPageTitle, setNewPageTitle] = useState(pageTitle);
@@ -382,7 +432,27 @@ export default function NotesBlockList({
       order: blocks.length,
       depth: 0,
     });
-    await fetchBlocks();
+    // Optimistically add the new block to state instead of refetching
+    // This preserves any unsaved changes in other blocks
+    if (id) {
+      const newBlock: NoteBlock = {
+        blockId: id,
+        pageId,
+        parentId: pageId,
+        type: blockType,
+        properties: blockType === "divider" ? {} : { text: "" },
+        order: blocks.length,
+        depth: 0,
+        isCollapsed: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      setBlocks((prevBlocks) => [...prevBlocks, newBlock]);
+    }
+    if (id) {
+      // focus the newly created block for editing
+      setEditingBlockId(id);
+    }
     return id;
   };
 
@@ -484,12 +554,19 @@ export default function NotesBlockList({
             <FlatList
               data={blocks}
               keyExtractor={(item) => item.blockId}
-              renderItem={({ item }) => (
+              renderItem={({ item, index }) => (
                 <EditableBlock
                   block={item}
                   onUpdate={handleUpdateBlock}
                   onDelete={handleDeleteBlock}
                   onAddBlockAfter={handleAddBlock}
+                  isEditingProp={editingBlockId === item.blockId}
+                  setEditingBlockId={setEditingBlockId}
+                  blockIndex={index}
+                  totalBlocks={blocks.length}
+                  onNavigateBlock={(nextIndex) => {
+                    setEditingBlockId(blocks[nextIndex]?.blockId || null);
+                  }}
                 />
               )}
               scrollEnabled={true}
@@ -675,6 +752,20 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     borderWidth: 1,
     borderColor: "#00d4d4",
+  },
+  modalHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  closeButtonText: {
+    fontSize: 18,
+    color: "#666",
+    fontWeight: "600",
   },
   modalTitle: {
     fontSize: 18,
