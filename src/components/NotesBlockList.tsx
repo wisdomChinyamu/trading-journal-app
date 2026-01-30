@@ -9,7 +9,6 @@ import {
   TextInput,
   Alert,
   Modal,
-  Platform,
 } from "react-native";
 import { useAppContext } from "../hooks/useAppContext";
 import {
@@ -21,6 +20,7 @@ import {
 } from "../services/firebaseService";
 import { NoteBlock } from "../types/notes";
 import SlashCommandMenu, { SlashCommand } from "./SlashCommandMenu";
+import ImageUploader from "./ImageUploader";
 
 const BLOCK_TYPE_LABELS: Record<string, string> = {
   paragraph: "Paragraph",
@@ -34,6 +34,47 @@ const BLOCK_TYPE_LABELS: Record<string, string> = {
   divider: "Divider",
 };
 
+// Simple Image Upload Modal component
+// Image upload modal uses the shared ImageUploader component (same UX as AddTrade)
+const ImageUploadModal = ({
+  visible,
+  onImageUrl,
+  onCancel,
+}: {
+  visible: boolean;
+  onImageUrl: (url: string) => void;
+  onCancel: () => void;
+}) => {
+  const [screenshots, setScreenshots] = useState<Array<{ uri: string }>>([]);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <TouchableOpacity
+        style={styles.modalBackdrop}
+        activeOpacity={1}
+        onPress={onCancel}
+      >
+        <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+          <Text style={styles.modalTitle}>Add Image</Text>
+          <ImageUploader
+            screenshots={screenshots}
+            onAdd={(uri: string) => {
+              // when uploader gives us a URI, notify parent and close
+              onImageUrl(uri);
+              onCancel();
+            }}
+            onRemove={(uri: string) =>
+              setScreenshots((s) => s.filter((x) => x.uri !== uri))
+            }
+            onUpdateLabel={() => {}}
+            maxImages={1}
+          />
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+
 // EditableBlock component for viewing and editing blocks
 const EditableBlock = ({
   block,
@@ -44,7 +85,7 @@ const EditableBlock = ({
   block: NoteBlock;
   onUpdate: (updatedBlock: NoteBlock) => void;
   onDelete: (blockId: string) => void;
-  onAddBlockAfter: (blockType: string) => void;
+  onAddBlockAfter: (blockType: string) => Promise<string | null>;
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [text, setText] = useState(block.properties?.text || "");
@@ -53,8 +94,14 @@ const EditableBlock = ({
   const [imageUri, setImageUri] = useState(block.properties?.url || "");
   const [showImageModal, setShowImageModal] = useState(false);
 
+  const autoCap = (s: string) =>
+    s.replace(/(^\s*|[.!?]\s+)([a-z])/g, (_m, p1, p2) => p1 + p2.toUpperCase());
+
   const handleSave = () => {
-    if (text.trim() === "" && !imageUri) {
+    const cleaned = text.replace(/\n+$/g, "");
+    const capitalized = autoCap(cleaned);
+
+    if (capitalized.trim() === "" && !imageUri) {
       onDelete(block.blockId);
       return;
     }
@@ -63,7 +110,7 @@ const EditableBlock = ({
       ...block,
       properties: {
         ...block.properties,
-        text: block.type === "image" ? "" : text,
+        text: block.type === "image" ? "" : capitalized,
         url: block.type === "image" ? imageUri : undefined,
       },
     };
@@ -72,113 +119,150 @@ const EditableBlock = ({
   };
 
   const handleKeyPress = (e: any) => {
-    if (e.nativeEvent.key === "Enter" && !e.nativeEvent.shiftKey) {
-      e.preventDefault();
+    const key = e?.nativeEvent?.key;
+    const shift = e?.nativeEvent?.shiftKey;
+    if (key === "Enter") {
+      // Shift+Enter -> insert newline
+      if (shift) {
+        setText((t: string) => t + "\n");
+        return;
+      }
+
+      // Enter -> finish this block and create a new paragraph
+      try {
+        e.preventDefault?.();
+      } catch (err) {}
       handleSave();
-      onAddBlockAfter(block.type);
-    } else if (e.nativeEvent.key === "Backspace") {
-      // If block is empty and not an image, delete the block
-      if (text.trim() === "" && !imageUri) {
-        e.preventDefault();
-        onDelete(block.blockId);
-      }
-      // If it's an image block and user presses backspace, delete the image
-      else if (block.type === "image" && imageUri) {
-        e.preventDefault();
-        setImageUri("");
-        // Update block to remove image
-        const updatedBlock = {
-          ...block,
-          type: "paragraph",
-          properties: {
-            ...block.properties,
-            url: undefined,
-            text: "",
-          },
-        };
-        onUpdate(updatedBlock);
-      }
+      // fire-and-forget creation of next block
+      void onAddBlockAfter("paragraph");
     }
   };
 
   const handleTextChange = (newText: string) => {
-    const oldText = text;
-    setText(newText);
-
-    // Detect backspace when text is shorter
-    if (newText.length < oldText.length && oldText.length > 0) {
-      // Backspace detected
-      if (newText === "") {
-        // If block becomes empty, delete it (unless it's an image block)
-        if (block.type !== "image" && !imageUri) {
-          onDelete(block.blockId);
-          return;
-        }
-      }
+    // detect and handle headings
+    const headingMatch = newText.match(/^(#{1,3})\s+/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const newType =
+        level === 1 ? "heading" : level === 2 ? "heading2" : "heading3";
+      const cleaned = newText.replace(/^(#{1,3})\s+/, "");
+      onUpdate({
+        ...block,
+        type: newType,
+        properties: { ...block.properties, text: cleaned },
+      });
+      setIsEditing(false);
+      return;
     }
 
-    // Check for slash command
-    if (newText.endsWith("/")) {
+    // divider
+    if (newText.endsWith("---")) {
+      onUpdate({ ...block, type: "divider", properties: {} });
+      setShowSlashMenu(false);
+      void onAddBlockAfter("paragraph");
+      return;
+    }
+
+    const slashTokenMatch = newText.match(/(^|\s)\/(\S*)$/);
+    if (slashTokenMatch) {
       setShowSlashMenu(true);
+      setSlashSearch(slashTokenMatch[2] || "");
+      setText(newText);
+      return;
+    }
+
+    // execute inline /cmd
+    const execMatch = newText.match(/(^|\s)\/(\S+)\s$/);
+    if (execMatch) {
+      const cmd = execMatch[2].toLowerCase();
+      setShowSlashMenu(false);
       setSlashSearch("");
-    } else if (newText.includes("/") && showSlashMenu) {
-      const parts = newText.split("/");
-      if (parts.length > 0) {
-        const search = parts[parts.length - 1];
-        setSlashSearch(search);
+      if (cmd === "image") {
+        setShowImageModal(true);
+        return;
+      }
+      if (cmd === "divider") {
+        onUpdate({ ...block, type: "divider", properties: {} });
+        void onAddBlockAfter("paragraph");
+        return;
+      }
+      if (cmd === "todo" || cmd === "list" || cmd === "quote") {
+        onUpdate({ ...block, type: cmd, properties: { text: "" } });
+        setIsEditing(false);
+        void onAddBlockAfter("paragraph");
+        return;
+      }
+      if (cmd === "h1" || cmd === "h2" || cmd === "h3") {
+        const map: Record<string, string> = {
+          h1: "heading",
+          h2: "heading2",
+          h3: "heading3",
+        };
+        onUpdate({ ...block, type: map[cmd], properties: { text: "" } });
+        setIsEditing(false);
+        void onAddBlockAfter("paragraph");
+        return;
       }
     }
+
+    // default: auto-capitalize sentences
+    setText(autoCap(newText));
   };
 
   const handleSlashCommand = (command: SlashCommand) => {
-    // Remove the "/" from text
     const cleanText = text.replace(/\/$/, "");
     setText(cleanText);
-    setShowSlashMenu(false);
-
-    // If it's an image, show uploader
     if (command.type === "image") {
       setShowImageModal(true);
+      setShowSlashMenu(false);
+      return;
     }
+    if (command.type === "divider") {
+      onUpdate({ ...block, type: "divider", properties: {} });
+      setShowSlashMenu(false);
+      void onAddBlockAfter("paragraph");
+      return;
+    }
+    if (
+      command.type === "todo" ||
+      command.type === "list" ||
+      command.type === "quote"
+    ) {
+      onUpdate({ ...block, type: command.type, properties: { text: "" } });
+      setShowSlashMenu(false);
+      setIsEditing(false);
+      void onAddBlockAfter("paragraph");
+      return;
+    }
+    if (
+      command.type === "heading" ||
+      command.type === "heading2" ||
+      command.type === "heading3"
+    ) {
+      onUpdate({ ...block, type: command.type, properties: { text: "" } });
+      setShowSlashMenu(false);
+      setIsEditing(false);
+      void onAddBlockAfter("paragraph");
+      return;
+    }
+    setShowSlashMenu(false);
   };
 
   const handleImagePaste = (imageUrl: string) => {
     setImageUri(imageUrl);
     setShowImageModal(false);
-    // Save the image block with URL
-    const updatedBlock = {
+    onUpdate({
       ...block,
       type: "image",
-      properties: {
-        ...block.properties,
-        url: imageUrl,
-        text: "",
-      },
-    };
-    onUpdate(updatedBlock);
+      properties: { ...block.properties, url: imageUrl, text: "" },
+    });
     setIsEditing(false);
-  };
-
-  const getBlockIcon = () => {
-    const icons: Record<string, string> = {
-      paragraph: "📝",
-      heading: "📌",
-      heading2: "📎",
-      heading3: "📍",
-      image: "🖼️",
-      todo: "☑️",
-      list: "📋",
-      quote: "💬",
-      divider: "—",
-    };
-    return icons[block.type] || "📄";
   };
 
   if (isEditing) {
     return (
       <>
         <View style={styles.editableBlockContainer}>
-          <Text style={styles.blockIcon}>{getBlockIcon()}</Text>
           {block.type === "image" && imageUri ? (
             <View style={styles.imageEditContainer}>
               <TextInput
@@ -192,15 +276,20 @@ const EditableBlock = ({
             </View>
           ) : (
             <TextInput
-              style={styles.editableInput}
+              style={[styles.editableInput, { borderWidth: 0 }]}
               value={text}
               onChangeText={handleTextChange}
-              onBlur={handleSave}
+              onBlur={() => {
+                if (!showSlashMenu) handleSave();
+              }}
               multiline
               autoFocus
+              blurOnSubmit={false}
               placeholder={`Type "/" for options... or just start typing...`}
               placeholderTextColor="#555"
-              onSubmitEditing={handleKeyPress}
+              onKeyPress={handleKeyPress}
+              underlineColorAndroid="transparent"
+              selectionColor="#00d4d4"
             />
           )}
           <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
@@ -227,7 +316,6 @@ const EditableBlock = ({
       style={styles.blockRow}
       onPress={() => setIsEditing(true)}
     >
-      <Text style={styles.blockIcon}>{getBlockIcon()}</Text>
       <View style={styles.blockInfo}>
         <Text style={styles.blockContent}>
           {block.type === "image" && block.properties?.url
@@ -236,64 +324,6 @@ const EditableBlock = ({
         </Text>
       </View>
     </TouchableOpacity>
-  );
-};
-
-// Simple Image Upload Modal
-const ImageUploadModal = ({
-  visible,
-  onImageUrl,
-  onCancel,
-}: {
-  visible: boolean;
-  onImageUrl: (url: string) => void;
-  onCancel: () => void;
-}) => {
-  const [imageUrl, setImageUrl] = useState("");
-
-  const handleAddImage = () => {
-    if (imageUrl.trim()) {
-      onImageUrl(imageUrl.trim());
-      setImageUrl("");
-    } else {
-      Alert.alert("Error", "Please enter a valid image URL");
-    }
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="fade">
-      <TouchableOpacity
-        style={styles.modalBackdrop}
-        activeOpacity={1}
-        onPress={onCancel}
-      >
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Add Image</Text>
-          <TextInput
-            style={styles.modalInput}
-            placeholder="Enter image URL from Supabase or web..."
-            placeholderTextColor="#666"
-            value={imageUrl}
-            onChangeText={setImageUrl}
-            multiline={false}
-          />
-          <View style={styles.modalButtons}>
-            <TouchableOpacity
-              style={styles.modalButtonCancel}
-              onPress={onCancel}
-            >
-              <Text style={styles.modalButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.modalButtonConfirm}
-              onPress={handleAddImage}
-            >
-              <Text style={styles.modalButtonText}>Add</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </TouchableOpacity>
-    </Modal>
   );
 };
 
@@ -340,9 +370,11 @@ export default function NotesBlockList({
     fetchBlocks();
   }, [userId, pageId]);
 
-  const handleAddBlock = async (blockType: string = "paragraph") => {
-    if (!userId || !pageId) return;
-    await createNoteBlock(userId, {
+  const handleAddBlock = async (
+    blockType: string = "paragraph",
+  ): Promise<string | null> => {
+    if (!userId || !pageId) return null;
+    const id = await createNoteBlock(userId, {
       pageId,
       parentId: pageId,
       type: blockType,
@@ -350,7 +382,8 @@ export default function NotesBlockList({
       order: blocks.length,
       depth: 0,
     });
-    fetchBlocks();
+    await fetchBlocks();
+    return id;
   };
 
   const handleUpdateBlock = async (updatedBlock: NoteBlock) => {
@@ -540,7 +573,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 4,
   },
-  blockIcon: { fontSize: 18, marginRight: 10, marginTop: 2 },
   blockInfo: {
     flex: 1,
     flexDirection: "column",

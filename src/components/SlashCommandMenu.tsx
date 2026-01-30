@@ -111,7 +111,8 @@ export default function SlashCommandMenu({
       <TouchableOpacity
         style={styles.backdrop}
         activeOpacity={1}
-        onPress={onClose}
+        // Prevent accidental closing when tapping outside - keep menu open until user selects
+        onPress={() => {}}
       >
         <View
           style={styles.containerWrapper}
@@ -131,7 +132,6 @@ export default function SlashCommandMenu({
                     style={styles.commandItem}
                     onPress={() => {
                       onSelectCommand(cmd);
-                      onClose();
                     }}
                     activeOpacity={0.7}
                   >
