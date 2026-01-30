@@ -1,6 +1,6 @@
 import { supabase } from "../config/supabase";
 
-const BUCKET_NAME = "trade-images";
+const DEFAULT_BUCKET_NAME = "trade-images";
 
 /**
  * Upload an image file to Supabase storage
@@ -40,7 +40,7 @@ export async function uploadTradeImage(
 
     // Upload file to Supabase storage
     const { data, error } = await supabase.storage
-      .from(BUCKET_NAME)
+      .from(DEFAULT_BUCKET_NAME)
       .upload(fileName, file, {
         cacheControl: "3600",
         upsert: false,
@@ -53,12 +53,74 @@ export async function uploadTradeImage(
 
     // Get public URL of uploaded image
     const { data: publicUrlData } = supabase.storage
-      .from(BUCKET_NAME)
+      .from(DEFAULT_BUCKET_NAME)
       .getPublicUrl(data.path);
 
     return publicUrlData.publicUrl;
   } catch (error) {
     console.error("Failed to upload trade image:", error);
+    return null;
+  }
+}
+
+/**
+ * Upload an image file to Supabase storage for notes
+ * @param pageId - The ID of the page to associate the image with
+ * @param file - The image file to upload
+ * @returns The public URL of the uploaded image or null if upload fails
+ */
+export async function uploadNoteImage(
+  pageId: string,
+  file: File,
+): Promise<string | null> {
+  try {
+    // Check if Supabase is configured
+    if (
+      !(process.env as any).EXPO_PUBLIC_SUPABASE_URL ||
+      !(process.env as any).EXPO_PUBLIC_SUPABASE_ANON_KEY
+    ) {
+      console.warn("Supabase not configured. Image upload skipped.");
+      return null;
+    }
+
+    // Check if the supabase client is properly initialized
+    if (!supabase || !supabase.storage) {
+      console.warn(
+        "Supabase client not properly initialized. Image upload skipped.",
+      );
+      return null;
+    }
+
+    if (!file) {
+      throw new Error("No file provided");
+    }
+
+    // Create a unique filename: pageId/timestamp_originalname
+    const timestamp = Date.now();
+    const fileName = `${pageId}/${timestamp}_${file.name}`;
+    const bucketName = "n-images"; // Specific bucket for note images
+
+    // Upload file to Supabase storage
+    const { data, error } = await supabase.storage
+      .from(bucketName)
+      .upload(fileName, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (error) {
+      console.error("Error uploading image:", error);
+      throw error;
+    }
+
+    // Get public URL of uploaded image
+    const { data: publicUrlData } = supabase.storage
+      .from(bucketName)
+      .getPublicUrl(data.path);
+
+    return publicUrlData.publicUrl;
+  } catch (error) {
+    console.error("Failed to upload note image:", error);
     return null;
   }
 }
@@ -90,11 +152,19 @@ export async function deleteTradeImage(imageUrl: string): Promise<boolean> {
     // Extract the file path from the URL if it's a full URL
     let filePath = imageUrl;
     if (imageUrl.includes("/storage/v1/object/public/")) {
-      filePath = imageUrl.split("/storage/v1/object/public/trade-images/")[1];
+      // Check if it's a trade-images or n-images URL
+      if (imageUrl.includes("/trade-images/")) {
+        filePath = imageUrl.split("/storage/v1/object/public/trade-images/")[1];
+      } else if (imageUrl.includes("/n-images/")) {
+        filePath = imageUrl.split("/storage/v1/object/public/n-images/")[1];
+      }
     }
 
+    // Determine which bucket to use based on the file path
+    const bucketName = filePath.includes('n-images') ? 'n-images' : DEFAULT_BUCKET_NAME;
+    
     const { error } = await supabase.storage
-      .from(BUCKET_NAME)
+      .from(bucketName)
       .remove([filePath]);
 
     if (error) {
@@ -134,7 +204,7 @@ export async function getTradeImages(tradeId: string): Promise<string[]> {
     }
 
     const { data, error } = await supabase.storage
-      .from(BUCKET_NAME)
+      .from(DEFAULT_BUCKET_NAME)
       .list(tradeId);
 
     if (error) {
@@ -147,7 +217,7 @@ export async function getTradeImages(tradeId: string): Promise<string[]> {
       const {
         data: { publicUrl },
       } = supabase.storage
-        .from(BUCKET_NAME)
+        .from(DEFAULT_BUCKET_NAME)
         .getPublicUrl(`${tradeId}/${file.name}`);
       return publicUrl;
     });

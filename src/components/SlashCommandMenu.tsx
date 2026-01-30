@@ -111,48 +111,42 @@ export default function SlashCommandMenu({
       <TouchableOpacity
         style={styles.backdrop}
         activeOpacity={1}
-        // Prevent accidental closing when tapping outside - keep menu open until user selects
-        onPress={() => {}}
+        onPress={onClose}
       >
-        <View
-          style={styles.containerWrapper}
-          onStartShouldSetResponder={() => true}
-        >
-          <View style={styles.container} onStartShouldSetResponder={() => true}>
-            <ScrollView
-              style={styles.menuList}
-              showsVerticalScrollIndicator={false}
-              nestedScrollEnabled
-              scrollEnabled={filteredCommands.length > 5}
-            >
-              {filteredCommands.length > 0 ? (
-                filteredCommands.map((cmd) => (
-                  <TouchableOpacity
-                    key={cmd.id}
-                    style={styles.commandItem}
-                    onPress={() => {
-                      onSelectCommand(cmd);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.commandIcon}>{cmd.icon}</Text>
-                    <View style={styles.commandInfo}>
-                      <Text style={styles.commandLabel}>{cmd.label}</Text>
-                      {cmd.description && (
-                        <Text style={styles.commandDescription}>
-                          {cmd.description}
-                        </Text>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                ))
-              ) : (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>No commands found</Text>
-                </View>
-              )}
-            </ScrollView>
-          </View>
+        <View style={styles.container}>
+          <ScrollView
+            style={styles.menuList}
+            showsVerticalScrollIndicator={false}
+            nestedScrollEnabled
+          >
+            {filteredCommands.length > 0 ? (
+              filteredCommands.map((cmd) => (
+                <TouchableOpacity
+                  key={cmd.id}
+                  style={styles.commandItem}
+                  onPress={() => {
+                    onSelectCommand(cmd);
+                    onClose();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.commandIcon}>{cmd.icon}</Text>
+                  <View style={styles.commandInfo}>
+                    <Text style={styles.commandLabel}>{cmd.label}</Text>
+                    {cmd.description && (
+                      <Text style={styles.commandDescription}>
+                        {cmd.description}
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>No commands found</Text>
+              </View>
+            )}
+          </ScrollView>
         </View>
       </TouchableOpacity>
     </Modal>
@@ -166,23 +160,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  containerWrapper: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   container: {
     backgroundColor: "#1a1a1a",
     borderRadius: 12,
-    maxHeight: "70%",
-    width: "95%",
-    maxWidth: 800,
+    maxHeight: 280, // Limit height to 5 items
+    width: "90%",
+    maxWidth: 400, // Wider menu
     borderWidth: 1,
     borderColor: "#00d4d4",
     overflow: "hidden",
   },
   menuList: {
-    maxHeight: "100%",
+    maxHeight: 280,
   },
   commandItem: {
     flexDirection: "row",

@@ -2,7 +2,7 @@
   "homepage": "http://wisdomChinyamu.github.io/capriannetrdz",
   "name": "capriannetrdz",
   "license": "0BSD",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
